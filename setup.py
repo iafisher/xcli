@@ -8,7 +8,7 @@ with open(os.path.join(dpath, "README.md"), "r") as f:
 
 
 setup(
-    name="iargs",
+    name="iargparse",
     version="0.1",
     description="Yet another argparse alternative.",
     long_description=long_description,
@@ -17,7 +17,7 @@ setup(
     author="Ian Fisher",
     author_email="iafisher@fastmail.com",
     packages=find_packages(exclude=["tests"]),
-    project_urls={"Source": "https://github.com/iafisher/iargs"},
+    project_urls={"Source": "https://github.com/iafisher/iargparse"},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

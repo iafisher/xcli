@@ -12,29 +12,31 @@ class Parser:
     def arg(self, name, *, default=None, type=None):
         # TODO: Help text.
         if name.startswith("-"):
-            raise IargsError(f"argument name cannot start with dash: {name}")
+            raise IargparseError(f"argument name cannot start with dash: {name}")
 
         if default is None and any(p.default is not None for p in self.positionals):
-            raise IargsError("argument without default may not follow one with default")
+            raise IargparseError(
+                "argument without default may not follow one with default"
+            )
 
         if any(p.name == name for p in self.positionals):
-            raise IargsError(f"duplicate argument name: {name}")
+            raise IargparseError(f"duplicate argument name: {name}")
 
         if name in self.subcommands:
-            raise IargsError("argument cannot have same name as subcommand")
+            raise IargparseError("argument cannot have same name as subcommand")
 
         self.positionals.append(ArgSpec(name, default=default, type=type))
         return self
 
     def flag(self, name, longname=None, *, arg=False, default=None, required=False):
         if required is True and arg is False:
-            raise IargsError("flag without an argument cannot be required")
+            raise IargparseError("flag without an argument cannot be required")
 
         if not name.startswith("-"):
-            raise IargsError(f"flag name must start with dash: {name}")
+            raise IargparseError(f"flag name must start with dash: {name}")
 
         if name in self.flags:
-            raise IargsError(f"duplicate flag name: {name}")
+            raise IargparseError(f"duplicate flag name: {name}")
 
         spec = FlagSpec(longname or name, arg=arg, default=default, required=required)
         self.flags[name] = spec
@@ -44,7 +46,7 @@ class Parser:
 
     def subcommand(self, name):
         if any(p.name == name for p in self.positionals):
-            raise IargsError("subcommand cannot have same name as argument")
+            raise IargparseError("subcommand cannot have same name as argument")
 
         subparser = Parser()
         self.subcommands[name] = subparser
@@ -56,7 +58,7 @@ class Parser:
 
         try:
             return self._parse(args)
-        except IargsError as e:
+        except IargparseError as e:
             print(f"Error: {e}\n", file=sys.stderr)
             # TODO: Use textwrap.
             print(self.usage(), file=sys.stderr)
@@ -89,13 +91,13 @@ class Parser:
             self.positionals_index += 1
 
         if self.positionals_index < len(self.positionals):
-            raise IargsError("too few arguments")
+            raise IargparseError("too few arguments")
 
         # Check for missing flags and set to False or default value if not required.
         for flag in self.flags.values():
             if flag.name not in self.parsed_args:
                 if flag.required and flag.default is None:
-                    raise IargsError(f"missing flag: {flag.name}")
+                    raise IargparseError(f"missing flag: {flag.name}")
 
                 self.parsed_args[flag.name] = (
                     False if flag.default is None else flag.default
@@ -106,14 +108,14 @@ class Parser:
     def _handle_arg(self):
         arg = self.args[self.args_index]
         if self.positionals_index >= len(self.positionals):
-            raise IargsError(f"extra argument: {arg}")
+            raise IargparseError(f"extra argument: {arg}")
 
         spec = self.positionals[self.positionals_index]
         if spec.type is not None:
             try:
                 arg = spec.type(arg)
             except Exception as e:
-                raise IargsError(f"could not parse typed argument: {arg}") from e
+                raise IargparseError(f"could not parse typed argument: {arg}") from e
 
         self.parsed_args[self.positionals[self.positionals_index].name] = arg
         self.positionals_index += 1
@@ -141,7 +143,7 @@ class Parser:
                     return
 
                 if self.args_index == len(self.args) - 1:
-                    raise IargsError(f"expected argument for {flag}")
+                    raise IargparseError(f"expected argument for {flag}")
 
                 self.parsed_args[spec.name] = self.args[self.args_index + 1]
                 self.args_index += 2
@@ -149,7 +151,7 @@ class Parser:
                 self.parsed_args[spec.name] = True
                 self.args_index += 1
         else:
-            raise IargsError(f"unknown flag: {flag}")
+            raise IargparseError(f"unknown flag: {flag}")
 
     def _handle_subcommand(self):
         arg = self.args[self.args_index]
@@ -158,7 +160,7 @@ class Parser:
                 self._handle_arg()
                 return
             else:
-                raise IargsError(f"unknown subcommand: {arg}")
+                raise IargparseError(f"unknown subcommand: {arg}")
 
         self.parsed_args.subcommand = arg
         subparser = self.subcommands[arg]
@@ -199,7 +201,7 @@ class Args(dict):
         self.subcommand = None
 
 
-class IargsError(Exception):
+class IargparseError(Exception):
     pass
 
 
