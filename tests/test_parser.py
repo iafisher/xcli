@@ -1,7 +1,7 @@
 import textwrap
 import unittest
 
-from iargparse import IargparseError, Parser
+from xcli import Parser, XCliError
 
 
 class ParserTests(unittest.TestCase):
@@ -14,11 +14,11 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(args, {"name": "ian", "office": "sfo"})
 
     def test_too_many_positionals(self):
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             Parser().arg("name")._parse(["ian", "23"])
 
     def test_missing_positional(self):
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             Parser().arg("name")._parse([])
 
     def test_positional_with_default(self):
@@ -27,11 +27,11 @@ class ParserTests(unittest.TestCase):
 
     def test_cannot_have_positional_with_default_after_one_without(self):
         parser = Parser().arg("name", default="ian")
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser.arg("age")
 
     def test_positional_name_cannot_start_with_dash(self):
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             Parser().arg("-q")
 
     def test_typed_positional(self):
@@ -40,7 +40,7 @@ class ParserTests(unittest.TestCase):
 
     def test_wrongly_typed_positional(self):
         parser = Parser().arg("age", type=int)
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser._parse(["a"])
 
     def test_flag(self):
@@ -59,12 +59,12 @@ class ParserTests(unittest.TestCase):
 
     def test_unknown_flag(self):
         parser = Parser().flag("-q")
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser._parse(["-r"])
 
     def test_cannot_have_two_flags_with_same_name(self):
         parser = Parser().flag("-q")
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser.flag("-q")
 
     def test_flag_with_argument(self):
@@ -81,11 +81,11 @@ class ParserTests(unittest.TestCase):
 
     def test_required_flag_with_missing_value(self):
         parser = Parser().flag("-p", arg=True, required=True)
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser._parse([])
 
     def test_cannot_have_required_flag_without_argument(self):
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             Parser().flag("-p", required=True)
 
     def test_flag_with_argument_with_default(self):
@@ -107,17 +107,17 @@ class ParserTests(unittest.TestCase):
 
     def test_cannot_have_two_args_with_same_name(self):
         parser = Parser().arg("name")
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser.arg("name")
 
     def test_cannot_have_subcommand_and_argument_with_same_name(self):
         parser = Parser().arg("whatever")
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser.subcommand("whatever")
 
         parser = Parser()
         parser.subcommand("whatever")
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser.arg("whatever")
 
     def test_help_flag(self):
@@ -125,7 +125,7 @@ class ParserTests(unittest.TestCase):
 
     def test_no_help_flag_with_helpless_setting(self):
         parser = Parser(helpless=True)
-        with self.assertRaises(IargparseError):
+        with self.assertRaises(XCliError):
             parser._parse(["--help"])
 
     def test_explicit_help_flag_with_helpless_setting(self):
@@ -140,46 +140,51 @@ s = lambda string: textwrap.dedent(string).lstrip("\n")  # noqa: E731
 
 class UsageTests(unittest.TestCase):
     def test_one_positional(self):
-        parser = Parser().arg("firstname")
+        parser = Parser(program="itest").arg("firstname")
         self.assertEqual(
             parser.usage(),
             s(
                 """
-                Usage:
-                  Positional arguments:
-                    firstname
+                Usage: itest firstname
+
+                Positional arguments:
+                  firstname
                 """
             ),
         )
 
     def test_positional_and_flag(self):
-        parser = Parser().arg("firstname").flag("--verbose")
+        parser = Parser(program="itest").arg("firstname").flag("--verbose")
         self.assertEqual(
             parser.usage(),
             s(
                 """
-                Usage:
-                  Positional arguments:
-                    firstname
+                Usage: itest firstname
 
-                  Flags:
-                    --verbose
+                Positional arguments:
+                  firstname
+
+                Flags:
+                  --verbose
                 """
             ),
         )
 
     def test_flag_with_long_name(self):
-        parser = Parser().flag("-v", "--verbose")
+        parser = Parser(program="itest").flag("-v", "--verbose")
         self.assertEqual(
             parser.usage(),
             s(
                 """
-                Usage:
-                  Flags:
-                    -v, --verbose
+                Usage: itest
+
+                Flags:
+                  -v, --verbose
                 """
             ),
         )
+
+    # TODO: Tests for subcommands.
 
 
 class RealParserTests(unittest.TestCase):

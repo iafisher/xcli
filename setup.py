@@ -1,6 +1,6 @@
 import os
-from setuptools import find_packages, setup
 
+from setuptools import find_packages, setup
 
 dpath = os.path.dirname(os.path.realpath(__file__))
 with open(os.path.join(dpath, "README.md"), "r") as f:
@@ -8,16 +8,16 @@ with open(os.path.join(dpath, "README.md"), "r") as f:
 
 
 setup(
-    name="iargparse",
+    name="xcli",
     version="0.1",
-    description="Yet another argparse alternative.",
+    description="Utilities for building command-line applications",
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="MIT",
     author="Ian Fisher",
     author_email="iafisher@fastmail.com",
     packages=find_packages(exclude=["tests"]),
-    project_urls={"Source": "https://github.com/iafisher/iargparse"},
+    project_urls={"Source": "https://github.com/iafisher/xcli"},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
