@@ -12,7 +12,10 @@ main() {
   if [[ "$subcommand" = test ]]; then
     python3 -m unittest "$@"
   elif [[ "$subcommand" = publish ]]; then
-    echo "Not implemented yet!"
+    # https://packaging.python.org/tutorials/packaging-projects/
+    rm -f dist/*
+    python3 setup.py sdist bdist_wheel
+    twine upload dist/*
   else
     usage
   fi
