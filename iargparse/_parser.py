@@ -4,6 +4,7 @@ import sys
 class Parser:
     def __init__(self, *, helpless=False, optional_subcommands=False):
         self.positionals = []
+        self.flag_nicknames = {}
         self.flags = {}
         self.subcommands = {}
         self.helpless = helpless
@@ -38,10 +39,13 @@ class Parser:
         if name in self.flags:
             raise IargparseError(f"duplicate flag name: {name}")
 
-        spec = FlagSpec(longname or name, arg=arg, default=default, required=required)
-        self.flags[name] = spec
+        spec = FlagSpec(name, longname, arg=arg, default=default, required=required)
         if longname:
             self.flags[longname] = spec
+            self.flag_nicknames[name] = longname
+        else:
+            self.flags[name] = spec
+
         return self
 
     def subcommand(self, name):
@@ -95,11 +99,11 @@ class Parser:
 
         # Check for missing flags and set to False or default value if not required.
         for flag in self.flags.values():
-            if flag.name not in self.parsed_args:
+            if flag.get_name() not in self.parsed_args:
                 if flag.required and flag.default is None:
-                    raise IargparseError(f"missing flag: {flag.name}")
+                    raise IargparseError(f"missing flag: {flag.get_name()}")
 
-                self.parsed_args[flag.name] = (
+                self.parsed_args[flag.get_name()] = (
                     False if flag.default is None else flag.default
                 )
 
@@ -133,25 +137,29 @@ class Parser:
         if not self.helpless and flag == "--help":
             self.parsed_args["--help"] = True
             self.args_index += 1
-        elif flag in self.flags:
-            spec = self.flags[flag]
+        else:
+            if flag in self.flag_nicknames:
+                spec = self.flags[self.flag_nicknames[flag]]
+            elif flag in self.flags:
+                spec = self.flags[flag]
+            else:
+                raise IargparseError(f"unknown flag: {flag}")
+
             if spec.arg:
                 # Value may be provided as part of the flag string, e.g. `--x=y`.
                 if value is not None:
-                    self.parsed_args[spec.name] = value
+                    self.parsed_args[spec.get_name()] = value
                     self.args_index += 1
                     return
 
                 if self.args_index == len(self.args) - 1:
                     raise IargparseError(f"expected argument for {flag}")
 
-                self.parsed_args[spec.name] = self.args[self.args_index + 1]
+                self.parsed_args[spec.get_name()] = self.args[self.args_index + 1]
                 self.args_index += 2
             else:
-                self.parsed_args[spec.name] = True
+                self.parsed_args[spec.get_name()] = True
                 self.args_index += 1
-        else:
-            raise IargparseError(f"unknown flag: {flag}")
 
     def _handle_subcommand(self):
         arg = self.args[self.args_index]
@@ -185,10 +193,15 @@ class Parser:
             builder.append("  Flags:\n")
             # TODO: This will print duplicates for flags with long names.
             for spec in sorted(self.flags.values(), key=lambda spec: spec.name):
-                if spec.arg:
-                    builder.append(f"    {spec.name} <arg>\n")
+                if spec.longname:
+                    name = spec.name + ", " + spec.longname
                 else:
-                    builder.append(f"    {spec.name}\n")
+                    name = spec.name
+
+                if spec.arg:
+                    builder.append(f"    {name} <arg>\n")
+                else:
+                    builder.append(f"    {name}\n")
 
         # TODO: Show subcommands.
 
@@ -213,8 +226,12 @@ class ArgSpec:
 
 
 class FlagSpec:
-    def __init__(self, name, *, arg, default, required):
+    def __init__(self, name, longname, *, arg, default, required):
         self.name = name
+        self.longname = longname
         self.arg = arg
         self.default = default
         self.required = required
+
+    def get_name(self):
+        return self.longname if self.longname else self.name

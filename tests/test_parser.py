@@ -1,3 +1,4 @@
+import textwrap
 import unittest
 
 from iargparse import IargparseError, Parser
@@ -14,11 +15,11 @@ class ParserTests(unittest.TestCase):
 
     def test_too_many_positionals(self):
         with self.assertRaises(IargparseError):
-            args = Parser().arg("name")._parse(["ian", "23"])
+            Parser().arg("name")._parse(["ian", "23"])
 
     def test_missing_positional(self):
         with self.assertRaises(IargparseError):
-            args = Parser().arg("name")._parse([])
+            Parser().arg("name")._parse([])
 
     def test_positional_with_default(self):
         args = Parser().arg("name").arg("office", default="sfo")._parse(["ian"])
@@ -93,8 +94,8 @@ class ParserTests(unittest.TestCase):
 
     def test_subcommands(self):
         parser = Parser()
-        subparser_list = parser.subcommand("list")
-        subparser_new = parser.subcommand("new")
+        parser.subcommand("list")
+        parser.subcommand("new")
 
         args = parser._parse(["list"])
         self.assertEqual(args, {"list": {}})
@@ -131,6 +132,54 @@ class ParserTests(unittest.TestCase):
         parser = Parser(helpless=True).flag("--help")
         self.assertEqual(parser._parse(["--help"]), {"--help": True})
         self.assertEqual(parser._parse([]), {"--help": False})
+
+
+# Helper function to let me write multi-line strings more readably.
+s = lambda string: textwrap.dedent(string).lstrip("\n")  # noqa: E731
+
+
+class UsageTests(unittest.TestCase):
+    def test_one_positional(self):
+        parser = Parser().arg("firstname")
+        self.assertEqual(
+            parser.usage(),
+            s(
+                """
+                Usage:
+                  Positional arguments:
+                    firstname
+                """
+            ),
+        )
+
+    def test_positional_and_flag(self):
+        parser = Parser().arg("firstname").flag("--verbose")
+        self.assertEqual(
+            parser.usage(),
+            s(
+                """
+                Usage:
+                  Positional arguments:
+                    firstname
+
+                  Flags:
+                    --verbose
+                """
+            ),
+        )
+
+    def test_flag_with_long_name(self):
+        parser = Parser().flag("-v", "--verbose")
+        self.assertEqual(
+            parser.usage(),
+            s(
+                """
+                Usage:
+                  Flags:
+                    -v, --verbose
+                """
+            ),
+        )
 
 
 class RealParserTests(unittest.TestCase):
@@ -180,7 +229,7 @@ class RealParserTests(unittest.TestCase):
         self.assertEqual(
             args,
             {
-                "debug": {"path": "a.txt", "--throttle": "10",},
+                "debug": {"path": "a.txt", "--throttle": "10"},
                 "path": "",
                 "--credits": False,
                 "--no-color": True,

@@ -24,17 +24,14 @@ def init(precommit):
     # Check that requirements.txt matches pip freeze.
     precommit.check(checks.PipFreeze(venv=".venv"))
 
+    # Run unit tests.
+    precommit.check(checks.Command("UnitTests", ["./do", "test"], exclude=["*.md"]))
+
     # Check Python static type annotations with mypy.
     # precommit.check(checks.PythonTypes())
 
-    # Lint JavaScript code with ESLint.
-    precommit.check(checks.JavaScriptLint())
-
-    # Check Rust format with rustfmt.
-    precommit.check(checks.RustFormat())
-
     # Run a custom command.
-    # precommit.checks(checks.Command("UnitTests", ["./test"]))
+    # precommit.check(checks.Command("UnitTests", ["./test"]))
 
     # Run a custom command on each file.
-    # precommit.checks(checks.Command("FileCheck", ["check_file"], pass_files=True))
+    # precommit.check(checks.Command("FileCheck", ["check_file"], pass_files=True))
