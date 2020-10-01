@@ -25,6 +25,10 @@ class ParserTests(unittest.TestCase):
         args = Parser().arg("name").arg("office", default="sfo")._parse(["ian"])
         self.assertEqual(args, {"name": "ian", "office": "sfo"})
 
+    def test_positional_with_none_as_default(self):
+        args = Parser().arg("name").arg("office", default=None)._parse(["ian"])
+        self.assertEqual(args, {"name": "ian", "office": None})
+
     def test_cannot_have_positional_with_default_after_one_without(self):
         parser = Parser().arg("name", default="ian")
         with self.assertRaises(XCliError):

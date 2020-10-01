@@ -1,6 +1,10 @@
 import os
 import sys
 
+# Singleton object to distinguish between passing `None` as a parameter and not passing
+# anything at all.
+Nothing = object()
+
 
 class Parser:
     def __init__(self, program=None, *, helpless=False, optional_subcommands=False):
@@ -12,12 +16,14 @@ class Parser:
         self.helpless = helpless
         self.optional_subcommands = optional_subcommands
 
-    def arg(self, name, *, default=None, type=None):
+    def arg(self, name, *, default=Nothing, type=None):
         # TODO: Help text.
         if name.startswith("-"):
             raise XCliError(f"argument name cannot start with dash: {name}")
 
-        if default is None and any(p.default is not None for p in self.positionals):
+        if default is Nothing and any(
+            p.default is not Nothing for p in self.positionals
+        ):
             raise XCliError("argument without default may not follow one with default")
 
         if any(p.name == name for p in self.positionals):
@@ -29,7 +35,7 @@ class Parser:
         self.positionals.append(ArgSpec(name, default=default, type=type))
         return self
 
-    def flag(self, name, longname=None, *, arg=False, default=None, required=False):
+    def flag(self, name, longname=None, *, arg=False, default=Nothing, required=False):
         if required is True and arg is False:
             raise XCliError("flag without an argument cannot be required")
 
@@ -88,7 +94,7 @@ class Parser:
         # Try to satisfy any missing positionals with default values.
         while self.positionals_index < len(self.positionals):
             spec = self.positionals[self.positionals_index]
-            if spec.default is None:
+            if spec.default is Nothing:
                 break
 
             self.parsed_args[spec.name] = spec.default
@@ -100,11 +106,13 @@ class Parser:
         # Check for missing flags and set to False or default value if not required.
         for flag in self.flags.values():
             if flag.get_name() not in self.parsed_args:
-                if flag.required and flag.default is None:
+                if flag.required and flag.default is Nothing:
                     raise XCliError(f"missing flag: {flag.get_name()}")
 
                 if flag.arg:
-                    self.parsed_args[flag.get_name()] = flag.default
+                    self.parsed_args[flag.get_name()] = (
+                        flag.default if flag.default is not Nothing else None
+                    )
                 else:
                     self.parsed_args[flag.get_name()] = False
 
@@ -185,7 +193,7 @@ class Parser:
         builder.append(self.program)
         for positional in self.positionals:
             builder.append(" ")
-            if positional.default:
+            if positional.default is not Nothing:
                 builder.append("[" + positional.name + "]")
             else:
                 builder.append(positional.name)
