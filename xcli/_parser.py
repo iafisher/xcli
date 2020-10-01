@@ -1,6 +1,8 @@
 import os
 import sys
 
+from ._exception import XCliError
+
 # Singleton object to distinguish between passing `None` as a parameter and not passing
 # anything at all.
 Nothing = object()
@@ -231,10 +233,6 @@ class Args(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.subcommand = None
-
-
-class XCliError(Exception):
-    pass
 
 
 class ArgSpec:

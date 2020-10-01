@@ -1,0 +1,2 @@
+class XCliError(Exception):
+    pass
