@@ -56,7 +56,7 @@ class Parser:
         self.subcommands[name] = subparser
         return subparser
 
-    def parse(self, args):
+    def parse(self, args=None):
         if args is None:
             args = sys.argv[1:]
 
