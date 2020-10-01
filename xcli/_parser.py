@@ -103,9 +103,10 @@ class Parser:
                 if flag.required and flag.default is None:
                     raise XCliError(f"missing flag: {flag.get_name()}")
 
-                self.parsed_args[flag.get_name()] = (
-                    False if flag.default is None else flag.default
-                )
+                if flag.arg:
+                    self.parsed_args[flag.get_name()] = flag.default
+                else:
+                    self.parsed_args[flag.get_name()] = False
 
         return self.parsed_args
 

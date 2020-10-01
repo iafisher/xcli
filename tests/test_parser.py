@@ -75,6 +75,10 @@ class ParserTests(unittest.TestCase):
         parser = Parser().flag("-p", arg=True)
         self.assertEqual(parser._parse(["-p=whatever"]), {"-p": "whatever"})
 
+    def test_missing_flag_with_argument(self):
+        parser = Parser().flag("-p", arg=True)
+        self.assertEqual(parser._parse([]), {"-p": None})
+
     def test_required_flag(self):
         parser = Parser().flag("-p", arg=True, required=True)
         self.assertEqual(parser._parse(["-p", "whatever"]), {"-p": "whatever"})
