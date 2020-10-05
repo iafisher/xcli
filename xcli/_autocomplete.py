@@ -32,8 +32,10 @@ class Autocomplete:
     are changed as soon as Autocomplete is initialized.
     """
 
-    def __init__(self, completer):
+    def __init__(self, completer, *, max_options=20):
         self.completer = completer
+        self.max_options = max_options
+
         self.cursor_pos = 0
         self.displayed_choices = []
         self.selected = None
@@ -138,7 +140,12 @@ class Autocomplete:
         if not empty_string and not chars:
             return []
 
-        return self.completer(chars)
+        options = self.completer(chars)
+
+        if self.max_options is not None:
+            return options[: self.max_options]
+        else:
+            return options
 
     def clear_choices(self):
         n = len(self.displayed_choices)
