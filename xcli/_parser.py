@@ -1,3 +1,9 @@
+"""
+A command-line argument parser.
+
+Author: Ian Fisher (iafisher@fastmail.com)
+Version: October 2020
+"""
 import os
 import sys
 
