@@ -42,29 +42,10 @@ class Autocomplete:
         self.prompt = None
         # The horizontal position of the cursor.
         self.cursor_pos = 0
-        # `self.chars` holds the characters currently displayed as the user input, while
-        # `self.actual_chars` holds the actual characers the user has entered.
-        #
-        #   User enters 'abc'.
-        #
-        #     self.chars = self.actual_chars = ['a', 'b', 'c']
-        #
-        #   User selects the 'abcdef' autocomplete option.
-        #
-        #     self.chars = ['a', 'b', 'c', 'd', 'e', 'f']
-        #     self.actual_chars ['a', 'b', 'c']
-        #
-        #   User presses the Up key to clear the autocomplete selection.
-        #
-        #     self.chars = self.actual_chars = ['a', 'b', 'c']
-        #
-        # Since, as in the last step of the example, users expect their previous input
-        # to be restored when they cancel an autocomplete selection, we have to store
-        # the previous input in `self.actual_chars`.
         self.chars = []
-        self.actual_chars = []
         # The choices, if any, currently displayed to the user.
         self.displayed_choices = []
+        self.lines_below_cursor = 0
         # The index of the currently selected choice. If no choice is selected, then
         # `self.selected` is None.
         self.selected = None
@@ -78,7 +59,6 @@ class Autocomplete:
         sys.stdout.write(self.prompt)
         sys.stdout.flush()
         self.chars.clear()
-        self.actual_chars.clear()
         self.cursor_pos = len(self.prompt)
         while True:
             c = sys.stdin.read(1)
@@ -89,11 +69,10 @@ class Autocomplete:
             # TODO: Support Tab key.
             if c == BACKSPACE:
                 if self.selected is not None:
+                    self.set_chars_to_selection()
                     self.unselect()
-                    self.actual_chars = self.chars[:]
 
                 if self.chars:
-                    self.actual_chars.pop()
                     self.chars.pop()
             elif c == ESCAPE:
                 # TODO: Support Tab and Right Arrow keys.
@@ -103,29 +82,23 @@ class Autocomplete:
                     self.select_up()
                 elif sequence == DOWN:
                     choices_for_empty_string = True
-                    if self.selected is None:
-                        self.actual_chars = self.chars
-
                     self.select_down()
                 else:
                     continue
-
-                if self.selected is not None:
-                    self.chars = list(self.displayed_choices[self.selected])
-                else:
-                    self.chars = self.actual_chars[:]
             elif c == CTRL_D:
                 raise EOFError
             else:
-                self.unselect()
-                self.actual_chars = self.chars[:]
+                if self.selected is not None:
+                    self.set_chars_to_selection()
+                    self.unselect()
                 self.chars.append(c)
-                self.actual_chars.append(c)
 
-            relevant = self.get_relevant_choices(
-                "".join(self.actual_chars), empty_string=choices_for_empty_string
-            )
-            self.handle_current_input(relevant)
+            if self.selected is None:
+                self.displayed_choices = self.get_relevant_choices(
+                    "".join(self.chars), empty_string=choices_for_empty_string
+                )
+
+            self.handle_current_input()
 
         self.clear_choices()
         cursor_down_and_start()
@@ -134,19 +107,29 @@ class Autocomplete:
     def close(self):
         termios.tcsetattr(sys.stdout.fileno(), termios.TCSADRAIN, self.old_settings)
 
-    def handle_current_input(self, relevant):
+    def handle_current_input(self):
         clear_line()
         return_to_start()
         sys.stdout.write(self.prompt)
-        sys.stdout.write("".join(self.chars))
-        self.cursor_pos = len(self.prompt) + len(self.chars)
+
+        if self.selected is None:
+            chars = "".join(self.chars)
+        else:
+            chars = self.displayed_choices[self.selected]
+
+        sys.stdout.write(chars)
+        self.cursor_pos = len(self.prompt) + len(chars)
 
         self.clear_choices()
-        self.display_choices(relevant)
+        self.display_choices()
         sys.stdout.flush()
+
+    def set_chars_to_selection(self):
+        self.chars = list(self.displayed_choices[self.selected])
 
     def unselect(self):
         self.selected = None
+        self.displayed_choices.clear()
 
     def select_up(self):
         if self.selected is None:
@@ -185,7 +168,7 @@ class Autocomplete:
             return options
 
     def clear_choices(self):
-        n = len(self.displayed_choices)
+        n = self.lines_below_cursor
         cursor_down()
         for _ in range(n):
             clear_line()
@@ -194,12 +177,10 @@ class Autocomplete:
         for _ in range(n + 1):
             cursor_up()
 
-        self.displayed_choices.clear()
-
-    def display_choices(self, choices):
+    def display_choices(self):
         cursor_down_and_start()
 
-        for i, choice in enumerate(choices):
+        for i, choice in enumerate(self.displayed_choices):
             if self.selected == i:
                 sys.stdout.write("\033[7m")
                 sys.stdout.write(choice + "\n")
@@ -207,9 +188,9 @@ class Autocomplete:
             else:
                 sys.stdout.write(choice + "\n")
 
-        self.displayed_choices = choices
+        self.lines_below_cursor = len(self.displayed_choices)
 
-        for _ in range(len(choices) + 1):
+        for _ in range(len(self.displayed_choices) + 1):
             cursor_up()
 
         cursor_right(self.cursor_pos)
@@ -218,6 +199,7 @@ class Autocomplete:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.clear_choices()
         self.close()
 
 
