@@ -38,9 +38,10 @@ class Autocomplete:
     `close`.
     """
 
-    def __init__(self, completer, *, max_options=20):
+    def __init__(self, completer, *, max_options=20, min_chars=1):
         self.completer = completer
         self.max_options = max_options
+        self.min_chars = min_chars
 
         self.prompt = None
         self.chars = []
@@ -76,7 +77,7 @@ class Autocomplete:
                 self.handle_char(c)
 
             if self.selected is None:
-                if self.chars or force_suggestions:
+                if len(self.chars) > self.min_chars or force_suggestions:
                     self.suggestions = self.get_suggestions("".join(self.chars))
                 else:
                     self.suggestions.clear()
