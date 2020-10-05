@@ -139,12 +139,11 @@ class Autocomplete:
         return_to_start()
         sys.stdout.write(self.prompt)
         sys.stdout.write("".join(self.chars))
-        sys.stdout.flush()
         self.cursor_pos = len(self.prompt) + len(self.chars)
 
         self.clear_choices()
         self.display_choices(relevant)
-        cursor_right(self.cursor_pos)
+        sys.stdout.flush()
 
     def unselect(self):
         self.selected = None
@@ -199,6 +198,7 @@ class Autocomplete:
 
     def display_choices(self, choices):
         cursor_down_and_start()
+
         for i, choice in enumerate(choices):
             if self.selected == i:
                 sys.stdout.write("\033[7m")
@@ -207,10 +207,12 @@ class Autocomplete:
             else:
                 sys.stdout.write(choice + "\n")
 
+        self.displayed_choices = choices
+
         for _ in range(len(choices) + 1):
             cursor_up()
 
-        self.displayed_choices = choices
+        cursor_right(self.cursor_pos)
 
     def __enter__(self):
         return self
