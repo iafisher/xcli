@@ -39,13 +39,10 @@ class Autocomplete:
         self.completer = completer
         self.max_options = max_options
 
+        self.printer = Printer()
         self.prompt = None
-        # The horizontal position of the cursor.
-        self.cursor_pos = 0
         self.chars = []
-        # The choices, if any, currently displayed to the user.
-        self.displayed_choices = []
-        self.lines_below_cursor = 0
+        self.suggestions = []
         # The index of the currently selected choice. If no choice is selected, then
         # `self.selected` is None.
         self.selected = None
@@ -56,16 +53,14 @@ class Autocomplete:
 
     def input(self, prompt):
         self.prompt = prompt
-        sys.stdout.write(self.prompt)
-        sys.stdout.flush()
         self.chars.clear()
-        self.cursor_pos = len(self.prompt)
+        self.printer.print_line(self.prompt)
         while True:
             c = sys.stdin.read(1)
             if c == "\n":
                 break
 
-            choices_for_empty_string = False
+            force_suggestions = False
             # TODO: Support Tab key.
             if c == BACKSPACE:
                 if self.selected is not None:
@@ -81,7 +76,7 @@ class Autocomplete:
                 if sequence == UP:
                     self.select_up()
                 elif sequence == DOWN:
-                    choices_for_empty_string = True
+                    force_suggestions = True
                     self.select_down()
                 else:
                     continue
@@ -94,42 +89,38 @@ class Autocomplete:
                 self.chars.append(c)
 
             if self.selected is None:
-                self.displayed_choices = self.get_relevant_choices(
-                    "".join(self.chars), empty_string=choices_for_empty_string
-                )
+                if self.chars or force_suggestions:
+                    self.suggestions = self.get_suggestions("".join(self.chars))
+                else:
+                    self.suggestions.clear()
 
-            self.handle_current_input()
+            self.sync_display()
 
-        self.clear_choices()
+        self.printer.clear_below_cursor()
         cursor_down_and_start()
         return "".join(self.chars)
 
     def close(self):
         termios.tcsetattr(sys.stdout.fileno(), termios.TCSADRAIN, self.old_settings)
 
-    def handle_current_input(self):
-        clear_line()
-        return_to_start()
-        sys.stdout.write(self.prompt)
-
+    def sync_display(self):
+        """
+        Synchronize the terminal display with the internal state.
+        """
         if self.selected is None:
             chars = "".join(self.chars)
         else:
-            chars = self.displayed_choices[self.selected]
+            chars = self.suggestions[self.selected]
 
-        sys.stdout.write(chars)
-        self.cursor_pos = len(self.prompt) + len(chars)
-
-        self.clear_choices()
-        self.display_choices()
-        sys.stdout.flush()
+        self.printer.print_line(self.prompt + chars)
+        self.printer.print_lines_below_cursor(self.suggestions, highlight=self.selected)
 
     def set_chars_to_selection(self):
-        self.chars = list(self.displayed_choices[self.selected])
+        self.chars = list(self.suggestions[self.selected])
 
     def unselect(self):
         self.selected = None
-        self.displayed_choices.clear()
+        self.suggestions.clear()
 
     def select_up(self):
         if self.selected is None:
@@ -142,13 +133,10 @@ class Autocomplete:
         self.selected -= 1
 
     def select_down(self):
-        if (
-            self.selected is not None
-            and self.selected >= len(self.displayed_choices) - 1
-        ):
+        if self.selected is not None and self.selected >= len(self.suggestions) - 1:
             return
 
-        if not self.displayed_choices:
+        if not self.suggestions:
             return
 
         if self.selected is None:
@@ -156,10 +144,7 @@ class Autocomplete:
         else:
             self.selected += 1
 
-    def get_relevant_choices(self, chars, *, empty_string=False):
-        if not empty_string and not chars:
-            return []
-
+    def get_suggestions(self, chars):
         options = self.completer(chars)
 
         if self.max_options is not None:
@@ -167,39 +152,11 @@ class Autocomplete:
         else:
             return options
 
-    def clear_choices(self):
-        n = self.lines_below_cursor
-        cursor_down()
-        for _ in range(n):
-            clear_line()
-            cursor_down()
-
-        for _ in range(n + 1):
-            cursor_up()
-
-    def display_choices(self):
-        cursor_down_and_start()
-
-        for i, choice in enumerate(self.displayed_choices):
-            if self.selected == i:
-                sys.stdout.write("\033[7m")
-                sys.stdout.write(choice + "\n")
-                sys.stdout.write("\033[0m")
-            else:
-                sys.stdout.write(choice + "\n")
-
-        self.lines_below_cursor = len(self.displayed_choices)
-
-        for _ in range(len(self.displayed_choices) + 1):
-            cursor_up()
-
-        cursor_right(self.cursor_pos)
-
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.clear_choices()
+        self.printer.clear_below_cursor()
         self.close()
 
 
@@ -218,6 +175,57 @@ def sequence_to_autocomplete(sequence, *, fuzzy=False):
         return lambda chars: [x for x in sequence if x in chars.lower()]
     else:
         return lambda chars: [x for x in sequence if x.startswith(chars.lower())]
+
+
+class Printer:
+    def __init__(self):
+        self.cursor_pos = 0
+        self.lines_below_cursor = 0
+
+    def print_line(self, line):
+        clear_line()
+        return_to_start()
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        self.cursor_pos = len(line)
+
+    def print_lines_below_cursor(self, lines, *, highlight=None):
+        # Make sure there's no output already below the cursor before printing more.
+        self.clear_below_cursor()
+
+        if not lines:
+            return
+
+        cursor_down_and_start()
+        for i, choice in enumerate(lines):
+            if i == highlight:
+                sys.stdout.write("\033[7m")
+                sys.stdout.write(choice + "\n")
+                sys.stdout.write("\033[0m")
+            else:
+                sys.stdout.write(choice + "\n")
+
+        self.lines_below_cursor = len(lines)
+
+        for _ in range(len(lines) + 1):
+            cursor_up()
+
+        cursor_right(self.cursor_pos)
+        sys.stdout.flush()
+
+    def clear_below_cursor(self):
+        if self.lines_below_cursor == 0:
+            return
+
+        cursor_down()
+        for _ in range(self.lines_below_cursor):
+            clear_line()
+            cursor_down()
+
+        for _ in range(self.lines_below_cursor + 1):
+            cursor_up()
+
+        self.lines_below_cursor = 0
 
 
 def backspace():
