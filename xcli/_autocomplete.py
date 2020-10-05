@@ -11,8 +11,8 @@ import sys
 import termios
 import tty
 
-UP = (27, 91, 65)
-DOWN = (27, 91, 66)
+UP = (91, 65)
+DOWN = (91, 66)
 BACKSPACE = chr(127)
 ESCAPE = chr(27)
 CTRL_D = chr(4)
@@ -33,19 +33,23 @@ class Autocomplete:
     If you don't use the context manager, make sure you call `Autocomplete.close` before
     you try to write to or read from the terminal, and note that the terminal settings
     are changed as soon as Autocomplete is initialized.
+
+    The only methods that should be considered public on this class are `input` and
+    `close`.
     """
 
     def __init__(self, completer, *, max_options=20):
         self.completer = completer
         self.max_options = max_options
 
-        self.printer = Printer()
         self.prompt = None
         self.chars = []
         self.suggestions = []
         # The index of the currently selected choice. If no choice is selected, then
         # `self.selected` is None.
         self.selected = None
+
+        self.printer = Printer()
 
         # Initialize the terminal.
         self.old_settings = termios.tcgetattr(sys.stdout.fileno())
@@ -63,30 +67,13 @@ class Autocomplete:
             force_suggestions = False
             # TODO: Support Tab key.
             if c == BACKSPACE:
-                if self.selected is not None:
-                    self.set_chars_to_selection()
-                    self.unselect()
-
-                if self.chars:
-                    self.chars.pop()
+                self.handle_backspace()
             elif c == ESCAPE:
-                # TODO: Support Tab and Right Arrow keys.
-                c2, c3 = sys.stdin.read(2)
-                sequence = (ord(c), ord(c2), ord(c3))
-                if sequence == UP:
-                    self.select_up()
-                elif sequence == DOWN:
-                    force_suggestions = True
-                    self.select_down()
-                else:
-                    continue
+                force_suggestions = self.handle_special_key()
             elif c == CTRL_D:
                 raise EOFError
             else:
-                if self.selected is not None:
-                    self.set_chars_to_selection()
-                    self.unselect()
-                self.chars.append(c)
+                self.handle_char(c)
 
             if self.selected is None:
                 if self.chars or force_suggestions:
@@ -115,19 +102,48 @@ class Autocomplete:
         self.printer.print_line(self.prompt + chars)
         self.printer.print_lines_below_cursor(self.suggestions, highlight=self.selected)
 
-    def set_chars_to_selection(self):
-        self.chars = list(self.suggestions[self.selected])
+    def handle_backspace(self):
+        self.choose_selection()
+        if self.chars:
+            self.chars.pop()
 
-    def unselect(self):
-        self.selected = None
-        self.suggestions.clear()
+    def handle_special_key(self):
+        """
+        Handles a special key (i.e., an escape sequence).
+
+        The return value is a boolean indicating whether suggestions should be forced
+        even if the user hasn't typed any characters yet.
+        """
+        # TODO: Support Tab and Right Arrow keys.
+        c2, c3 = sys.stdin.read(2)
+        sequence = (ord(c2), ord(c3))
+        if sequence == UP:
+            self.select_up()
+        elif sequence == DOWN:
+            self.select_down()
+            # If the user presses the Down key, force suggestions even if they haven't
+            # entered any characters.
+            return True
+
+        # By default, don't force suggestions.
+        return False
+
+    def handle_char(self, c):
+        self.choose_selection()
+        self.chars.append(c)
+
+    def choose_selection(self):
+        if self.selected is not None:
+            self.chars = list(self.suggestions[self.selected])
+            self.selected = None
+            self.suggestions.clear()
 
     def select_up(self):
         if self.selected is None:
             return
 
         if self.selected == 0:
-            self.unselect()
+            self.selected = None
             return
 
         self.selected -= 1
@@ -178,6 +194,10 @@ def sequence_to_autocomplete(sequence, *, fuzzy=False):
 
 
 class Printer:
+    """
+    A class to handle low-level output control.
+    """
+
     def __init__(self):
         self.cursor_pos = 0
         self.lines_below_cursor = 0
@@ -190,6 +210,11 @@ class Printer:
         self.cursor_pos = len(line)
 
     def print_lines_below_cursor(self, lines, *, highlight=None):
+        """
+        Prints the given lines below the cursor.
+
+        The cursor is returned to its initial position.
+        """
         # Make sure there's no output already below the cursor before printing more.
         self.clear_below_cursor()
 
@@ -214,6 +239,11 @@ class Printer:
         sys.stdout.flush()
 
     def clear_below_cursor(self):
+        """
+        Clears all previous output below the cursor.
+
+        The cursor is returned to its initial position.
+        """
         if self.lines_below_cursor == 0:
             return
 
