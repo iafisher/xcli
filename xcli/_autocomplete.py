@@ -15,6 +15,7 @@ UP = (27, 91, 65)
 DOWN = (27, 91, 66)
 BACKSPACE = chr(127)
 ESCAPE = chr(27)
+CTRL_D = chr(4)
 
 
 class Autocomplete:
@@ -113,6 +114,8 @@ class Autocomplete:
                     self.chars = list(self.displayed_choices[self.selected])
                 else:
                     self.chars = self.actual_chars[:]
+            elif c == CTRL_D:
+                raise EOFError
             else:
                 self.unselect()
                 self.actual_chars = self.chars[:]
