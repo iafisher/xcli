@@ -63,6 +63,7 @@ class Autocomplete:
         while True:
             c = sys.stdin.read(1)
             if c == "\n":
+                self.choose_selection()
                 break
 
             force_suggestions = False
