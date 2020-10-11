@@ -70,5 +70,10 @@ def confirm(prompt):
     """
     Prompts the user to respond yes or no.
     """
-    response = input2(prompt, verify=lambda s: s.lower().startswith(("y", "n")))
-    return response.lower().startswith("y")
+    try:
+        response = input2(prompt, verify=lambda s: s.lower().startswith(("y", "n")))
+    except EOFError:
+        print()
+        return False
+    else:
+        return response.lower().startswith("y")
