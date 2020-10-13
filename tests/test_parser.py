@@ -113,6 +113,14 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(args, {"new": {}})
         self.assertEqual(args.subcommand, "new")
 
+    def test_missing_subcommand(self):
+        parser = Parser()
+        parser.subcommand("list")
+        parser.subcommand("new")
+
+        with self.assertRaises(XCliError):
+            parser._parse([])
+
     def test_cannot_have_two_args_with_same_name(self):
         parser = Parser().arg("name")
         with self.assertRaises(XCliError):
@@ -153,7 +161,7 @@ class UsageTests(unittest.TestCase):
             parser.usage(),
             s(
                 """
-                Usage: itest firstname
+                Usage: itest <firstname>
 
                 Positional arguments:
                   firstname
@@ -167,13 +175,34 @@ class UsageTests(unittest.TestCase):
             parser.usage(),
             s(
                 """
-                Usage: itest firstname
+                Usage: itest <firstname>
 
                 Positional arguments:
                   firstname
 
                 Flags:
                   --verbose
+                """
+            ),
+        )
+
+    def test_positional_and_required_flag_with_arg(self):
+        parser = (
+            Parser(program="itest")
+            .arg("firstname")
+            .flag("--verbose", arg=True, required=True)
+        )
+        self.assertEqual(
+            parser.usage(),
+            s(
+                """
+                Usage: itest --verbose=<arg> <firstname>
+
+                Positional arguments:
+                  firstname
+
+                Flags:
+                  --verbose <arg>
                 """
             ),
         )
@@ -192,7 +221,25 @@ class UsageTests(unittest.TestCase):
             ),
         )
 
+    def test_subcommand(self):
+        parser = Parser(program="itest")
+        parser.subcommand("edit").arg("file")
+        parser.subcommand("new").arg("file")
+        self.assertEqual(
+            parser.usage(),
+            s(
+                """
+                Usage: itest <subcommand>
+
+                Subcommands:
+                  edit <file>
+                  new <file>
+                  """
+            ),
+        )
+
     # TODO: Tests for subcommands.
+    # TODO: Tests with help strings.
 
 
 class RealParserTests(unittest.TestCase):

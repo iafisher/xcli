@@ -40,6 +40,8 @@ class Parser:
         if name in self.subcommands:
             raise XCliError("argument cannot have same name as subcommand")
 
+        # TODO: Positionals shouldn't be allowed at all with subcommands.
+
         self.positionals.append(ArgSpec(name, default=default, type=type))
         return self
 
@@ -98,6 +100,13 @@ class Parser:
                 self._handle_subcommand()
             else:
                 self._handle_arg()
+
+        if (
+            self.subcommands
+            and not self.optional_subcommands
+            and not self.parsed_args.subcommand
+        ):
+            raise XCliError("missing subcommand")
 
         # Try to satisfy any missing positionals with default values.
         while self.positionals_index < len(self.positionals):
@@ -199,14 +208,17 @@ class Parser:
         builder = []
         builder.append("Usage: ")
         builder.append(self.program)
-        for positional in self.positionals:
-            builder.append(" ")
-            if positional.default is not Nothing:
-                builder.append("[" + positional.name + "]")
-            else:
-                builder.append(positional.name)
+        builder.append(self._brief_usage())
 
         builder.append("\n\n")
+
+        if self.subcommands:
+            builder.append("Subcommands:\n")
+            for subcommand, parser in self.subcommands.items():
+                builder.append("  ")
+                builder.append(subcommand)
+                builder.append(parser._brief_usage())
+                builder.append("\n")
 
         if self.positionals:
             builder.append("Positional arguments:\n")
@@ -231,6 +243,25 @@ class Parser:
                     builder.append(f"  {name}\n")
 
         # TODO: Show subcommands.
+
+        return "".join(builder)
+
+    def _brief_usage(self):
+        builder = []
+        for flag in sorted(self.flags.values(), key=lambda spec: spec.name):
+            if flag.required and flag.arg:
+                builder.append(" ")
+                builder.append(flag.name + "=<arg>")
+
+        for positional in self.positionals:
+            builder.append(" ")
+            if positional.default is not Nothing:
+                builder.append("[<" + positional.name + ">]")
+            else:
+                builder.append("<" + positional.name + ">")
+
+        if self.subcommands:
+            builder.append(" <subcommand>")
 
         return "".join(builder)
 
