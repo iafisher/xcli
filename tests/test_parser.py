@@ -264,8 +264,7 @@ class RealParserTests(unittest.TestCase):
 
     def test_hera_parser(self):
         # Based on https://github.com/iafisher/hera-py/blob/master/hera/main.py
-        p = Parser(optional_subcommands=True)
-        p.arg("path", default="")
+        p = Parser()
         p.flag("-v", "--version")
         p.flag("--credits")
         p.flag("--no-color")
@@ -273,12 +272,13 @@ class RealParserTests(unittest.TestCase):
         p.subcommand("assemble").arg("path").flag("--code").flag("--data")
         p.subcommand("preprocess").arg("path")
         p.subcommand("disassemble").arg("path")
+        p.subcommand("run", default=True).arg("path")
 
         args = p.parse(["a.txt"])
         self.assertEqual(
             args,
             {
-                "path": "a.txt",
+                "run": {"path": "a.txt"},
                 "--credits": False,
                 "--no-color": False,
                 "--version": False,
@@ -290,7 +290,6 @@ class RealParserTests(unittest.TestCase):
             args,
             {
                 "debug": {"path": "a.txt", "--throttle": "10"},
-                "path": "",
                 "--credits": False,
                 "--no-color": True,
                 "--version": False,

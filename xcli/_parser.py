@@ -15,14 +15,14 @@ Nothing = object()
 
 
 class Parser:
-    def __init__(self, program=None, *, helpless=False, optional_subcommands=False):
+    def __init__(self, program=None, *, helpless=False):
         self.program = os.path.basename(sys.argv[0]) if not program else program
         self.positionals = []
         self.flag_nicknames = {}
         self.flags = {}
         self.subcommands = {}
+        self.default_subcommand = None
         self.helpless = helpless
-        self.optional_subcommands = optional_subcommands
 
     def arg(self, name, *, default=Nothing, type=None):
         # TODO: Help text.
@@ -64,9 +64,15 @@ class Parser:
 
         return self
 
-    def subcommand(self, name):
+    def subcommand(self, name, *, default=False):
         if any(p.name == name for p in self.positionals):
             raise XCliError("subcommand cannot have same name as argument")
+
+        if default is True:
+            if self.default_subcommand:
+                raise XCliError("cannot have multiple default subcommands")
+
+            self.default_subcommand = name
 
         subparser = Parser()
         self.subcommands[name] = subparser
@@ -101,11 +107,7 @@ class Parser:
             else:
                 self._handle_arg()
 
-        if (
-            self.subcommands
-            and not self.optional_subcommands
-            and not self.parsed_args.subcommand
-        ):
+        if self.subcommands and not self.parsed_args.subcommand:
             raise XCliError("missing subcommand")
 
         # Try to satisfy any missing positionals with default values.
@@ -189,16 +191,19 @@ class Parser:
 
     def _handle_subcommand(self):
         arg = self.args[self.args_index]
-        if arg not in self.subcommands:
-            if self.optional_subcommands:
-                self._handle_arg()
-                return
-            else:
-                raise XCliError(f"unknown subcommand: {arg}")
+        if arg not in self.subcommands and not self.default_subcommand:
+            raise XCliError(f"unknown subcommand: {arg}")
 
-        self.parsed_args.subcommand = arg
-        subparser = self.subcommands[arg]
-        self.parsed_args[arg] = subparser._parse(self.args[self.args_index + 1 :])
+        if arg in self.subcommands:
+            subcommand = arg
+            self.args_index += 1
+            self.parsed_args.subcommand = arg
+        else:
+            subcommand = self.default_subcommand
+
+        subparser = self.subcommands[subcommand]
+        self.parsed_args.subcommand = subcommand
+        self.parsed_args[subcommand] = subparser._parse(self.args[self.args_index :])
         # Set `args_index` to the length of `args` so that parsing ends after this
         # method returns.
         self.args_index = len(self.args)
