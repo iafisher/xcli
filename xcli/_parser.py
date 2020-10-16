@@ -87,7 +87,7 @@ class Parser:
         except XCliError as e:
             print(f"Error: {e}\n", file=sys.stderr)
             # TODO: Use textwrap.
-            print(self.usage(), file=sys.stderr)
+            print(self.usage(), end="", flush=True, file=sys.stderr)
             sys.exit(1)
 
         # TODO: Handle --help.
@@ -230,8 +230,8 @@ class Parser:
             for positional in self.positionals:
                 builder.append(f"  {positional.name}\n")
 
-        if self.positionals and self.flags:
-            builder.append("\n")
+            if self.flags:
+                builder.append("\n")
 
         if self.flags:
             builder.append("Flags:\n")
@@ -246,8 +246,6 @@ class Parser:
                     builder.append(f"  {name} <arg>\n")
                 else:
                     builder.append(f"  {name}\n")
-
-        # TODO: Show subcommands.
 
         return "".join(builder)
 
