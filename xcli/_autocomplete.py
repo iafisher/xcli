@@ -223,7 +223,10 @@ class Printer:
         if not lines:
             return
 
-        cursor_down_and_start()
+        # It's important to write newlines instead of using `cursor_down` here, because
+        # `cursor_down` will have no effect if we are already at the bottom of the
+        # window, whereas newlines will automatically scroll the window.
+        sys.stdout.write("\n")
         for i, choice in enumerate(lines):
             if i == highlight:
                 sys.stdout.write("\033[7m")
@@ -234,9 +237,7 @@ class Printer:
 
         self.lines_below_cursor = len(lines)
 
-        for _ in range(len(lines) + 1):
-            cursor_up()
-
+        cursor_up(len(lines) + 1)
         cursor_right(self.cursor_pos)
         sys.stdout.flush()
 
@@ -249,14 +250,15 @@ class Printer:
         if self.lines_below_cursor == 0:
             return
 
+        # We don't have to worry about using `cursor_down` like we do in
+        # `print_lines_below_cursor` because we know that everything below the cursor
+        # is within the window, so `cursor_down` will never fail.
         cursor_down()
         for _ in range(self.lines_below_cursor):
             clear_line()
             cursor_down()
 
-        for _ in range(self.lines_below_cursor + 1):
-            cursor_up()
-
+        cursor_up(self.lines_below_cursor + 1)
         self.lines_below_cursor = 0
 
 
@@ -294,8 +296,8 @@ def cursor_down_and_start():
     csi("E")
 
 
-def cursor_up():
-    csi("A")
+def cursor_up(n=1):
+    csi(str(n) + "A")
 
 
 def csi(code):
