@@ -11,14 +11,21 @@ from ._autocomplete import Autocomplete, sequence_to_autocomplete
 
 
 def input2(
-    prompt, *, autocomplete=None, choices=None, normalize=True, type=None, verify=None
+    prompt,
+    *,
+    autocomplete=None,
+    autocomplete_fuzzy=False,
+    choices=None,
+    normalize=True,
+    type=None,
+    verify=None
 ):
     """
     Prompts the user for input until their response satisfies the parameters.
 
     - If `autocomplete` is True, it should either be a list of autocompletion options,
       or a function that accepts the characters typed so far (as a string), and returns
-      a  list of autocompletion options.
+      a list of autocompletion options.
 
     - If `normalize` is True, then leading and trailing whitespace is stripped.
 
@@ -39,7 +46,7 @@ def input2(
         raise ValueError("`choices` and `verify` may not both be specified")
 
     if isinstance(autocomplete, Sequence):
-        autocomplete = sequence_to_autocomplete(autocomplete)
+        autocomplete = sequence_to_autocomplete(autocomplete, fuzzy=autocomplete_fuzzy)
 
     while True:
         if autocomplete is not None:

@@ -190,7 +190,7 @@ def sequence_to_autocomplete(sequence, *, fuzzy=False):
     """
     sequence = [x.lower() for x in sequence]
     if fuzzy:
-        return lambda chars: [x for x in sequence if x in chars.lower()]
+        return lambda chars: [x for x in sequence if chars.lower() in x]
     else:
         return lambda chars: [x for x in sequence if x.startswith(chars.lower())]
 
