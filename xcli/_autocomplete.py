@@ -38,7 +38,9 @@ class Autocomplete:
     `close`.
     """
 
-    def __init__(self, completer, *, max_options=20, min_chars=1):
+    def __init__(self, stdout, stdin, completer, *, max_options=20, min_chars=1):
+        self.stdout = stdout
+        self.stdin = stdin
         self.completer = completer
         self.max_options = max_options
         self.min_chars = min_chars
@@ -50,7 +52,7 @@ class Autocomplete:
         # `self.selected` is None.
         self.selected = None
 
-        self.printer = Printer()
+        self.printer = Printer(stdout, stdin)
 
     def close(self):
         self.printer.close()
@@ -60,7 +62,7 @@ class Autocomplete:
         self.chars.clear()
         self.printer.print_line(self.prompt)
         while True:
-            c = sys.stdin.read(1)
+            c = self.stdin.read(1)
             if c == "\n":
                 self.choose_selection()
                 break
@@ -85,7 +87,7 @@ class Autocomplete:
             self.sync_display()
 
         self.printer.clear_below_cursor()
-        cursor_down_and_start()
+        self.printer.cursor_down_and_start()
         return "".join(self.chars)
 
     def sync_display(self):
@@ -113,7 +115,7 @@ class Autocomplete:
         even if the user hasn't typed any characters yet.
         """
         # TODO: Support Tab and Right Arrow keys.
-        c2, c3 = sys.stdin.read(2)
+        c2, c3 = self.stdin.read(2)
         sequence = (ord(c2), ord(c3))
         if sequence == UP:
             self.select_up()
@@ -196,22 +198,28 @@ class Printer:
     A class to handle low-level output control.
     """
 
-    def __init__(self):
+    def __init__(self, stdout, stdin):
+        self.stdout = stdout
+        self.stdin = stdin
         self.cursor_pos = 0
         self.lines_below_cursor = 0
 
         # Initialize the terminal.
-        self.old_settings = termios.tcgetattr(sys.stdout.fileno())
-        tty.setcbreak(sys.stdout.fileno())
+        fileno = self.stdout.fileno()
+        if fileno is not None:
+            self.old_settings = termios.tcgetattr(fileno)
+            tty.setcbreak(fileno)
 
     def close(self):
-        termios.tcsetattr(sys.stdout.fileno(), termios.TCSADRAIN, self.old_settings)
+        fileno = self.stdout.fileno()
+        if fileno is not None:
+            termios.tcsetattr(fileno, termios.TCSADRAIN, self.old_settings)
 
     def print_line(self, line):
-        clear_line()
-        return_to_start()
-        sys.stdout.write(line)
-        sys.stdout.flush()
+        self.clear_line()
+        self.return_to_start()
+        self.stdout.write(line)
+        self.stdout.flush()
         self.cursor_pos = len(line)
 
     def print_lines_below_cursor(self, lines, *, highlight=None):
@@ -229,20 +237,20 @@ class Printer:
         # It's important to write newlines instead of using `cursor_down` here, because
         # `cursor_down` will have no effect if we are already at the bottom of the
         # window, whereas newlines will automatically scroll the window.
-        sys.stdout.write("\n")
+        self.stdout.write("\n")
         for i, choice in enumerate(lines):
             if i == highlight:
-                sys.stdout.write("\033[7m")
-                sys.stdout.write(choice + "\n")
-                sys.stdout.write("\033[0m")
+                self.stdout.write("\033[7m")
+                self.stdout.write(choice + "\n")
+                self.stdout.write("\033[0m")
             else:
-                sys.stdout.write(choice + "\n")
+                self.stdout.write(choice + "\n")
 
         self.lines_below_cursor = len(lines)
 
-        cursor_up(len(lines) + 1)
-        cursor_right(self.cursor_pos)
-        sys.stdout.flush()
+        self.cursor_up(len(lines) + 1)
+        self.cursor_right(self.cursor_pos)
+        self.stdout.flush()
 
     def clear_below_cursor(self):
         """
@@ -256,56 +264,41 @@ class Printer:
         # We don't have to worry about using `cursor_down` like we do in
         # `print_lines_below_cursor` because we know that everything below the cursor
         # is within the window, so `cursor_down` will never fail.
-        cursor_down()
+        self.cursor_down()
         for _ in range(self.lines_below_cursor):
-            clear_line()
-            cursor_down()
+            self.clear_line()
+            self.cursor_down()
 
-        cursor_up(self.lines_below_cursor + 1)
+        self.cursor_up(self.lines_below_cursor + 1)
         self.lines_below_cursor = 0
 
+    def clear_line(self):
+        self.csi("2K")
 
-def backspace():
-    cursor_left()
-    sys.stdout.write(" ")
-    cursor_left()
+    def return_to_start(self):
+        self.csi("G")
 
+    def cursor_down(self):
+        self.csi("B")
 
-def clear_line():
-    csi("2K")
+    def cursor_left(self, n=1):
+        self.csi(str(n) + "D")
 
+    def cursor_right(self, n=1):
+        self.csi(str(n) + "C")
 
-def return_to_start():
-    csi("G")
+    def cursor_up_and_start(self):
+        self.csi("F")
 
+    def cursor_down_and_start(self):
+        self.csi("E")
 
-def cursor_down():
-    csi("B")
+    def cursor_up(self, n=1):
+        self.csi(str(n) + "A")
 
-
-def cursor_left(n=1):
-    csi(str(n) + "D")
-
-
-def cursor_right(n=1):
-    csi(str(n) + "C")
-
-
-def cursor_up_and_start():
-    csi("F")
-
-
-def cursor_down_and_start():
-    csi("E")
-
-
-def cursor_up(n=1):
-    csi(str(n) + "A")
-
-
-def csi(code):
-    sys.stdout.write("\x1b[" + code)
-    sys.stdout.flush()
+    def csi(self, code):
+        self.stdout.write("\x1b[" + code)
+        self.stdout.flush()
 
 
 def d(*args, **kwargs):

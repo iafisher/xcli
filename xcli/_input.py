@@ -5,6 +5,7 @@ Author: Ian Fisher (iafisher@fastmail.com)
 Version: October 2020
 """
 import readline  # noqa: F401
+import sys
 from collections.abc import Sequence
 
 from ._autocomplete import Autocomplete, sequence_to_autocomplete
@@ -50,7 +51,7 @@ def input2(
 
     while True:
         if autocomplete is not None:
-            with Autocomplete(autocomplete) as ac:
+            with Autocomplete(sys.stdout, sys.stdin, autocomplete) as ac:
                 response = ac.input(prompt)
         else:
             response = input(prompt)
