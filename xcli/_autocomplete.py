@@ -20,6 +20,7 @@ END = (91, 70)
 BACKSPACE = chr(127)
 ESCAPE = chr(27)
 CTRL_D = chr(4)
+CTRL_L = chr(12)
 ENTER = "\n"
 TAB = "\t"
 
@@ -94,6 +95,8 @@ class Autocomplete:
                 self.handle_tab()
             elif c == CTRL_D:
                 raise EOFError
+            elif c == CTRL_L:
+                self.printer.clear_screen()
             else:
                 self.handle_char(c)
 
@@ -339,6 +342,11 @@ class Printer:
 
     def clear_line(self):
         self.csi("2K")
+
+    def clear_screen(self):
+        self.csi("2J")
+        # Move the cursor to the top left corner.
+        self.csi(";H")
 
     def return_to_start(self):
         self.csi("G")
