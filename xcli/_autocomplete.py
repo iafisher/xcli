@@ -30,7 +30,7 @@ class Autocomplete:
 
     Use it like this:
 
-        with Autocomplete(completer) as ac:
+        with Autocomplete(sys.stdout, sys.stdin, completer) as ac:
             response = ac.input("? ")
 
     Autocompletion requires changing some terminal settings. The context manager will
@@ -68,7 +68,18 @@ class Autocomplete:
         self.prompt = prompt
         self.chars.clear()
         self.printer.print_line(self.prompt)
+
         while True:
+            # Each iteration of this loop is responsible for setting the following
+            # fields:
+            #
+            #   self.cursor - the position of the cursor, as an index into `self.chars`
+            #   self.chars - the characters to display after the prompt
+            #   self.suggestions - the list of suggestions to display
+            #   self.selected - the index of the suggestion to be highlighted, if any
+            #
+            # and calling `self.sync_display()` to update the terminal based on their
+            # values.
             c = self.stdin.read(1)
             if c == ENTER:
                 self.choose_selection()
@@ -100,7 +111,7 @@ class Autocomplete:
 
     def sync_display(self):
         """
-        Synchronize the terminal display with the internal state.
+        Synchronize the terminal display with the object's internal state.
         """
         if self.selected is None:
             chars = "".join(self.chars)
@@ -168,7 +179,10 @@ class Autocomplete:
         return False
 
     def handle_char(self, c):
+        # If a character is typed while a suggestion is selected, that suggestion will
+        # automatically be accepted.
         self.choose_selection()
+
         self.chars.insert(self.cursor, c)
         self.cursor += 1
 
@@ -247,12 +261,14 @@ class Printer:
 
         # Initialize the terminal.
         fileno = self.stdout.fileno()
+        # This check allows us to pass in a fake stdout instance for tests.
         if fileno is not None:
             self.old_settings = termios.tcgetattr(fileno)
             tty.setcbreak(fileno)
 
     def close(self):
         fileno = self.stdout.fileno()
+        # This check allows us to pass in a fake stdout instance for tests.
         if fileno is not None:
             termios.tcsetattr(fileno, termios.TCSADRAIN, self.old_settings)
 
@@ -270,7 +286,7 @@ class Printer:
 
     def print_lines_below_cursor(self, lines, *, highlight=None):
         """
-        Prints the given lines below the cursor.
+        Prints the lines below the cursor.
 
         The cursor is returned to its initial position.
         """
