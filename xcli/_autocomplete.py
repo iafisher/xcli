@@ -13,6 +13,8 @@ import tty
 
 UP = (91, 65)
 DOWN = (91, 66)
+HOME = (91, 72)
+END = (91, 70)
 BACKSPACE = chr(127)
 ESCAPE = chr(27)
 CTRL_D = chr(4)
@@ -46,6 +48,7 @@ class Autocomplete:
         self.min_chars = min_chars
 
         self.prompt = None
+        self.cursor = 0
         self.chars = []
         self.suggestions = []
         # The index of the currently selected choice. If no choice is selected, then
@@ -100,12 +103,19 @@ class Autocomplete:
             chars = self.suggestions[self.selected]
 
         self.printer.print_line(self.prompt + chars)
+        if self.selected is not None:
+            self.printer.hide_cursor()
+        else:
+            self.printer.show_cursor()
+            self.printer.set_cursor(len(self.prompt) + self.cursor)
+
         self.printer.print_lines_below_cursor(self.suggestions, highlight=self.selected)
 
     def handle_backspace(self):
         self.choose_selection()
         if self.chars:
             self.chars.pop()
+            self.cursor -= 1
 
     def handle_special_key(self):
         """
@@ -124,17 +134,25 @@ class Autocomplete:
             # If the user presses the Down key, force suggestions even if they haven't
             # entered any characters.
             return True
+        elif sequence == HOME:
+            self.cursor = 0
+            return False
+        elif sequence == END:
+            self.cursor = len(self.chars)
+            return False
 
         # By default, don't force suggestions.
         return False
 
     def handle_char(self, c):
         self.choose_selection()
-        self.chars.append(c)
+        self.chars.insert(self.cursor, c)
+        self.cursor += 1
 
     def choose_selection(self):
         if self.selected is not None:
             self.chars = list(self.suggestions[self.selected])
+            self.cursor = len(self.chars)
             self.selected = None
             self.suggestions.clear()
 
@@ -222,6 +240,11 @@ class Printer:
         self.stdout.flush()
         self.cursor_pos = len(line)
 
+    def set_cursor(self, pos):
+        self.return_to_start()
+        self.cursor_right(pos)
+        self.cursor_pos = pos
+
     def print_lines_below_cursor(self, lines, *, highlight=None):
         """
         Prints the given lines below the cursor.
@@ -295,6 +318,12 @@ class Printer:
 
     def cursor_up(self, n=1):
         self.csi(str(n) + "A")
+
+    def hide_cursor(self):
+        self.csi("?25l")
+
+    def show_cursor(self):
+        self.csi("?25h")
 
     def csi(self, code):
         self.stdout.write("\x1b[" + code)

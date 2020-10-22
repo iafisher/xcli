@@ -6,6 +6,8 @@ from xcli._autocomplete import Autocomplete, sequence_to_autocomplete
 BACKSPACE = "\x7f"
 DOWN = "\x1b\x5b\x42"
 UP = "\x1b\x5b\x41"
+HOME = "\x1b\x5b\x48"
+END = "\x1b\x5b\x46"
 ENTER = "\n"
 
 
@@ -85,3 +87,17 @@ class AutocompleteTests(unittest.TestCase):
             response = ac.input("? ")
 
         self.assertEqual(response, "na")
+
+    def test_home_key(self):
+        fake_stdin = io.StringIO("lb" + HOME + "a" + DOWN + ENTER)
+        with Autocomplete(self.fake_stdout, fake_stdin, self.completer) as ac:
+            response = ac.input("? ")
+
+        self.assertEqual(response, "albania")
+
+    def test_end_key(self):
+        fake_stdin = io.StringIO("lb" + HOME + "a" + END + "an" + ENTER)
+        with Autocomplete(self.fake_stdout, fake_stdin, self.completer) as ac:
+            response = ac.input("? ")
+
+        self.assertEqual(response, "alban")
