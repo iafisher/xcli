@@ -20,6 +20,8 @@ END = (91, 70)
 BACKSPACE = chr(127)
 ESCAPE = chr(27)
 CTRL_D = chr(4)
+ENTER = "\n"
+TAB = "\t"
 
 
 class Autocomplete:
@@ -68,7 +70,7 @@ class Autocomplete:
         self.printer.print_line(self.prompt)
         while True:
             c = self.stdin.read(1)
-            if c == "\n":
+            if c == ENTER:
                 self.choose_selection()
                 break
 
@@ -78,6 +80,8 @@ class Autocomplete:
                 self.handle_backspace()
             elif c == ESCAPE:
                 force_suggestions = self.handle_special_key()
+            elif c == TAB:
+                self.handle_tab()
             elif c == CTRL_D:
                 raise EOFError
             else:
@@ -119,6 +123,15 @@ class Autocomplete:
             self.chars.pop(self.cursor - 1)
             self.cursor -= 1
 
+    def handle_tab(self):
+        if self.selected is not None:
+            self.choose_selection()
+        else:
+            suggestions = self.get_suggestions("".join(self.chars))
+            if suggestions:
+                self.chars = list(suggestions[0])
+                self.cursor = len(self.chars)
+
     def handle_special_key(self):
         """
         Handles a special key (i.e., an escape sequence).
@@ -126,7 +139,6 @@ class Autocomplete:
         The return value is a boolean indicating whether suggestions should be forced
         even if the user hasn't typed any characters yet.
         """
-        # TODO: Support Tab key.
         c2, c3 = self.stdin.read(2)
         sequence = (ord(c2), ord(c3))
         if sequence == UP:

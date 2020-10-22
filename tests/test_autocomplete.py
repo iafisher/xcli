@@ -10,6 +10,7 @@ RIGHT = "\x1b\x5b\x43"
 LEFT = "\x1b\x5b\x44"
 HOME = "\x1b\x5b\x48"
 END = "\x1b\x5b\x46"
+TAB = "\t"
 ENTER = "\n"
 
 
@@ -117,3 +118,17 @@ class AutocompleteTests(unittest.TestCase):
             response = ac.input("? ")
 
         self.assertEqual(response, "lorem")
+
+    def test_tab_and_select(self):
+        fake_stdin = io.StringIO(TAB + DOWN + ENTER)
+        with Autocomplete(self.fake_stdout, fake_stdin, self.completer) as ac:
+            response = ac.input("? ")
+
+        self.assertEqual(response, "albania")
+
+    def test_tab_to_select(self):
+        fake_stdin = io.StringIO("na" + TAB + DOWN + ENTER)
+        with Autocomplete(self.fake_stdout, fake_stdin, self.completer) as ac:
+            response = ac.input("? ")
+
+        self.assertEqual(response, "namibia")
