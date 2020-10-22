@@ -75,7 +75,6 @@ class Autocomplete:
                 break
 
             force_suggestions = False
-            # TODO: Support Tab key.
             if c == BACKSPACE:
                 self.handle_backspace()
             elif c == ESCAPE:
