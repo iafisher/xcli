@@ -13,6 +13,8 @@ import tty
 
 UP = (91, 65)
 DOWN = (91, 66)
+RIGHT = (91, 67)
+LEFT = (91, 68)
 HOME = (91, 72)
 END = (91, 70)
 BACKSPACE = chr(127)
@@ -113,8 +115,8 @@ class Autocomplete:
 
     def handle_backspace(self):
         self.choose_selection()
-        if self.chars:
-            self.chars.pop()
+        if self.chars and self.cursor > 0:
+            self.chars.pop(self.cursor - 1)
             self.cursor -= 1
 
     def handle_special_key(self):
@@ -124,7 +126,7 @@ class Autocomplete:
         The return value is a boolean indicating whether suggestions should be forced
         even if the user hasn't typed any characters yet.
         """
-        # TODO: Support Tab and Right Arrow keys.
+        # TODO: Support Tab key.
         c2, c3 = self.stdin.read(2)
         sequence = (ord(c2), ord(c3))
         if sequence == UP:
@@ -134,6 +136,16 @@ class Autocomplete:
             # If the user presses the Down key, force suggestions even if they haven't
             # entered any characters.
             return True
+        elif sequence == RIGHT:
+            if self.cursor < len(self.chars):
+                self.cursor += 1
+
+            return False
+        elif sequence == LEFT:
+            if self.cursor > 0:
+                self.cursor -= 1
+
+            return False
         elif sequence == HOME:
             self.cursor = 0
             return False
