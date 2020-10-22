@@ -34,7 +34,7 @@ class Autocomplete:
     you try to write to or read from the terminal, and note that the terminal settings
     are changed as soon as Autocomplete is initialized.
 
-    The only methods that should be considered public on this class are `input` and
+    The only method that should be considered public on this class are `input` and
     `close`.
     """
 
@@ -52,9 +52,8 @@ class Autocomplete:
 
         self.printer = Printer()
 
-        # Initialize the terminal.
-        self.old_settings = termios.tcgetattr(sys.stdout.fileno())
-        tty.setcbreak(sys.stdout.fileno())
+    def close(self):
+        self.printer.close()
 
     def input(self, prompt):
         self.prompt = prompt
@@ -88,9 +87,6 @@ class Autocomplete:
         self.printer.clear_below_cursor()
         cursor_down_and_start()
         return "".join(self.chars)
-
-    def close(self):
-        termios.tcsetattr(sys.stdout.fileno(), termios.TCSADRAIN, self.old_settings)
 
     def sync_display(self):
         """
@@ -203,6 +199,13 @@ class Printer:
     def __init__(self):
         self.cursor_pos = 0
         self.lines_below_cursor = 0
+
+        # Initialize the terminal.
+        self.old_settings = termios.tcgetattr(sys.stdout.fileno())
+        tty.setcbreak(sys.stdout.fileno())
+
+    def close(self):
+        termios.tcsetattr(sys.stdout.fileno(), termios.TCSADRAIN, self.old_settings)
 
     def print_line(self, line):
         clear_line()
