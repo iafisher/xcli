@@ -281,6 +281,7 @@ class Printer:
         if not lines:
             return
 
+        self.hide_cursor()
         # It's important to write newlines instead of using `cursor_down` here, because
         # `cursor_down` will have no effect if we are already at the bottom of the
         # window, whereas newlines will automatically scroll the window.
@@ -297,7 +298,7 @@ class Printer:
 
         self.cursor_up(len(lines) + 1)
         self.cursor_right(self.cursor_pos)
-        self.stdout.flush()
+        self.show_cursor()
 
     def clear_below_cursor(self):
         """
@@ -308,6 +309,7 @@ class Printer:
         if self.lines_below_cursor == 0:
             return
 
+        self.hide_cursor()
         # We don't have to worry about using `cursor_down` like we do in
         # `print_lines_below_cursor` because we know that everything below the cursor
         # is within the window, so `cursor_down` will never fail.
@@ -318,6 +320,7 @@ class Printer:
 
         self.cursor_up(self.lines_below_cursor + 1)
         self.lines_below_cursor = 0
+        self.show_cursor()
 
     def clear_line(self):
         self.csi("2K")
