@@ -54,7 +54,14 @@ class Table:
     def __str__(self):
         return self.as_string()
 
-    def as_string(self, *, width=None, allow_empty=False):
+    def as_string(
+        self,
+        *,
+        width=None,
+        allow_empty=False,
+        final_newline=False,
+        trim_whitespace=True,
+    ):
         if not self.rows:
             if allow_empty:
                 return ""
@@ -85,7 +92,13 @@ class Table:
 
             builder.append(self.combine_cells(cells, padding=self.padding))
 
-        return "\n".join(builder)
+        if trim_whitespace:
+            builder = [line.rstrip() for line in builder]
+
+        result = "\n".join(builder)
+        if not final_newline and result.endswith("\n"):
+            result = result[:-1]
+        return result
 
     def distribute_width(self, column_widths, width):
         # Identify "problematic" columns that are wider than the even width, and keep

@@ -4,6 +4,7 @@ import sys
 from collections import OrderedDict
 
 from ._exception import XCliError
+from ._output import Table
 
 # Singleton object to distinguish between passing `None` as a parameter and not passing
 # anything at all.
@@ -11,18 +12,20 @@ Nothing = object()
 
 
 class Arg:
-    def __init__(self, name, *, default=Nothing, type=None):
+    def __init__(self, name, *, help="", default=Nothing, type=None):
         self.name = name
+        self.help = help
         self.default = default
         self.type = type
 
 
 class Flag:
     def __init__(
-        self, name, longname="", *, arg=False, required=False, default=Nothing
+        self, name, longname="", *, help="", arg=False, required=False, default=Nothing
     ):
         self.name = name
         self.longname = longname
+        self.help = help
         self.arg = arg
         self.required = required
         self.default = default
@@ -134,11 +137,11 @@ class Parser:
         except XCliError as e:
             print(f"Error: {e}\n", file=sys.stderr)
             # TODO: Use textwrap.
-            print(self.usage(), end="", flush=True, file=sys.stderr)
+            print(self.usage(), file=sys.stderr)
             sys.exit(1)
 
         if result.help:
-            print(self.usage(), end="", flush=True)
+            print(self.usage())
             sys.exit(0)
         else:
             return result
@@ -258,37 +261,40 @@ class Parser:
         builder.append(self.program)
         builder.append(self._brief_usage())
 
-        builder.append("\n\n")
-
         if self.subcommands:
-            builder.append("Subcommands:\n")
+            builder.append("\n\n")
+            builder.append("Subcommands:")
             for subcommand, parser in self.subcommands.items():
+                builder.append("\n")
                 builder.append("  ")
                 builder.append(subcommand)
                 builder.append(parser._brief_usage())
-                builder.append("\n")
 
         if self.args:
+            builder.append("\n\n")
             builder.append("Positional arguments:\n")
+            table = Table(columns=2, padding=4)
             for spec in self.args:
-                builder.append(f"  {spec.name}\n")
+                table.add_row("  " + spec.name, spec.help)
 
-            if self.flags:
-                builder.append("\n")
+            builder.append(str(table))
 
         if self.flags:
+            builder.append("\n\n")
             builder.append("Flags:\n")
-            # TODO: This will print duplicates for flags with long names.
-            for spec in sorted(self.flags.values(), key=lambda spec: spec.get_name):
+            table = Table(columns=2, padding=4)
+            for spec in sorted(self.flags.values(), key=lambda spec: spec.name):
                 if spec.longname:
                     name = spec.name + ", " + spec.longname
                 else:
                     name = spec.name
 
                 if spec.arg:
-                    builder.append(f"  {name} <arg>\n")
+                    table.add_row(f"  {name} <arg>", spec.help)
                 else:
-                    builder.append(f"  {name}\n")
+                    table.add_row(f"  {name}", spec.help)
+
+                builder.append(str(table))
 
         return "".join(builder)
 

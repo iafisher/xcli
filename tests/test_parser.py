@@ -203,8 +203,7 @@ class UsageTests(unittest.TestCase):
                 Usage: itest <firstname>
 
                 Positional arguments:
-                  firstname
-                """
+                  firstname"""
             ),
         )
 
@@ -220,8 +219,7 @@ class UsageTests(unittest.TestCase):
                   firstname
 
                 Flags:
-                  --verbose
-                """
+                  --verbose"""
             ),
         )
 
@@ -241,8 +239,7 @@ class UsageTests(unittest.TestCase):
                   firstname
 
                 Flags:
-                  --verbose <arg>
-                """
+                  --verbose <arg>"""
             ),
         )
 
@@ -255,8 +252,20 @@ class UsageTests(unittest.TestCase):
                 Usage: itest
 
                 Flags:
-                  -v, --verbose
+                  -v, --verbose"""
+            ),
+        )
+
+    def test_flag_with_help_text(self):
+        parser = Parser(program="itest", flags=[Flag("-v", help="Set verbosity.")])
+        self.assertEqual(
+            parser.usage(),
+            s(
                 """
+                Usage: itest
+
+                Flags:
+                  -v    Set verbosity."""
             ),
         )
 
@@ -273,13 +282,9 @@ class UsageTests(unittest.TestCase):
 
                 Subcommands:
                   edit <file>
-                  new <file>
-                  """
+                  new <file>"""
             ),
         )
-
-    # TODO: Tests for subcommands.
-    # TODO: Tests with help strings.
 
 
 class RealParserTests(unittest.TestCase):
