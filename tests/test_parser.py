@@ -1,151 +1,146 @@
 import textwrap
 import unittest
 
-from xcli import Parser, XCliError
+from xcli import Arg, Flag, Parser, XCliError
 
 
 class ParserTests(unittest.TestCase):
     def test_one_positional(self):
-        args = Parser().arg("name")._parse(["ian"])
-        self.assertEqual(args, {"name": "ian"})
+        args = Parser(args=["username"])._parse(["ian"])
+        self.assertEqual(args, {"username": "ian"})
 
     def test_two_positionals(self):
-        args = Parser().arg("name").arg("office")._parse(["ian", "sfo"])
-        self.assertEqual(args, {"name": "ian", "office": "sfo"})
+        args = Parser(args=["username", "office"])._parse(["ian", "sfo"])
+        self.assertEqual(args, {"username": "ian", "office": "sfo"})
 
     def test_too_many_positionals(self):
-        with self.assertRaises(XCliError):
-            Parser().arg("name")._parse(["ian", "23"])
+        with self.assertRaisesRegex(XCliError, "^extra argument: 23$"):
+            Parser(args=["username"])._parse(["ian", "23"])
 
     def test_missing_positional(self):
-        with self.assertRaises(XCliError):
-            Parser().arg("name")._parse([])
+        with self.assertRaisesRegex(XCliError, "^missing argument: username$"):
+            Parser(args=["username"])._parse([])
 
     def test_positional_with_default(self):
-        args = Parser().arg("name").arg("office", default="sfo")._parse(["ian"])
-        self.assertEqual(args, {"name": "ian", "office": "sfo"})
+        args = Parser(args=["username", Arg("office", default="sfo")])._parse(["ian"])
+        self.assertEqual(args, {"username": "ian", "office": "sfo"})
 
     def test_positional_with_none_as_default(self):
-        args = Parser().arg("name").arg("office", default=None)._parse(["ian"])
-        self.assertEqual(args, {"name": "ian", "office": None})
+        args = Parser(args=["username", Arg("office", default=None)])._parse(["ian"])
+        self.assertEqual(args, {"username": "ian", "office": None})
 
     def test_cannot_have_positional_with_default_after_one_without(self):
-        parser = Parser().arg("name", default="ian")
-        with self.assertRaises(XCliError):
-            parser.arg("age")
+        with self.assertRaisesRegex(
+            XCliError, "^argument without default may not follow one with default$"
+        ):
+            Parser(args=[Arg("name", default="ian"), "age"])
 
     def test_positional_name_cannot_start_with_dash(self):
-        with self.assertRaises(XCliError):
-            Parser().arg("-q")
+        with self.assertRaisesRegex(
+            XCliError, "^positional name may not start with dash: -q$"
+        ):
+            Parser(args=["-q"])
 
     def test_typed_positional(self):
-        args = Parser().arg("age", type=int)._parse(["15"])
+        args = Parser(args=[Arg("age", type=int)])._parse(["15"])
         self.assertEqual(args, {"age": 15})
 
     def test_wrongly_typed_positional(self):
-        parser = Parser().arg("age", type=int)
-        with self.assertRaises(XCliError):
+        parser = Parser(args=[Arg("age", type=int)])
+        with self.assertRaisesRegex(XCliError, "^could not parse typed argument: a$"):
             parser._parse(["a"])
 
     def test_flag(self):
-        args = Parser().flag("-q")._parse(["-q"])
+        args = Parser(flags=["-q"])._parse(["-q"])
         self.assertEqual(args, {"-q": True})
 
     def test_missing_flag(self):
-        args = Parser().flag("-q")._parse([])
+        args = Parser(flags=["-q"])._parse([])
         self.assertEqual(args, {"-q": False})
 
     def test_flag_with_long_name(self):
-        parser = Parser().flag("-q", "--quiet")
+        parser = Parser(flags=[Flag("-q", "--quiet")])
         self.assertEqual(parser._parse(["-q"]), {"--quiet": True})
         self.assertEqual(parser._parse(["--quiet"]), {"--quiet": True})
         self.assertEqual(parser._parse([]), {"--quiet": False})
 
     def test_unknown_flag(self):
-        parser = Parser().flag("-q")
-        with self.assertRaises(XCliError):
+        parser = Parser(flags=["-q"])
+        with self.assertRaisesRegex(XCliError, "^unknown flag: -r$"):
             parser._parse(["-r"])
 
     def test_cannot_have_two_flags_with_same_name(self):
-        parser = Parser().flag("-q")
-        with self.assertRaises(XCliError):
-            parser.flag("-q")
+        with self.assertRaisesRegex(XCliError, "^duplicate flag: -q$"):
+            Parser(flags=["-q", "-q"])
 
     def test_flag_with_argument(self):
-        parser = Parser().flag("-p", arg=True)
+        parser = Parser(flags=[Flag("-p", arg=True)])
         self.assertEqual(parser._parse(["-p", "whatever"]), {"-p": "whatever"})
 
     def test_flag_with_argument_alternative_syntax(self):
-        parser = Parser().flag("-p", arg=True)
+        parser = Parser(flags=[Flag("-p", arg=True)])
         self.assertEqual(parser._parse(["-p=whatever"]), {"-p": "whatever"})
 
     def test_missing_flag_with_argument(self):
-        parser = Parser().flag("-p", arg=True)
+        parser = Parser(flags=[Flag("-p", arg=True)])
         self.assertEqual(parser._parse([]), {"-p": None})
 
     def test_required_flag(self):
-        parser = Parser().flag("-p", arg=True, required=True)
+        parser = Parser(flags=[Flag("-p", arg=True, required=True)])
         self.assertEqual(parser._parse(["-p", "whatever"]), {"-p": "whatever"})
 
     def test_required_flag_with_missing_value(self):
-        parser = Parser().flag("-p", arg=True, required=True)
-        with self.assertRaises(XCliError):
+        parser = Parser(flags=[Flag("-p", arg=True, required=True)])
+        with self.assertRaisesRegex(XCliError, "^missing required flag: -p$"):
             parser._parse([])
 
     def test_cannot_have_required_flag_without_argument(self):
-        with self.assertRaises(XCliError):
-            Parser().flag("-p", required=True)
+        with self.assertRaisesRegex(
+            XCliError, "^flag cannot be required without an arg: -p$"
+        ):
+            Parser(flags=[Flag("-p", required=True)])
 
     def test_flag_with_argument_with_default(self):
-        parser = Parser().flag("-p", arg=True, default="whatever")
+        parser = Parser(flags=[Flag("-p", arg=True, default="whatever")])
         self.assertEqual(parser._parse([]), {"-p": "whatever"})
 
     def test_subcommands(self):
-        parser = Parser()
-        parser.subcommand("list")
-        parser.subcommand("new")
+        parser = Parser(subcommands={"list": Parser(), "new": Parser()})
 
         args = parser._parse(["list"])
-        self.assertEqual(args, {"list": {}})
+        self.assertEqual(args, {})
         self.assertEqual(args.subcommand, "list")
 
         args = parser._parse(["new"])
-        self.assertEqual(args, {"new": {}})
+        self.assertEqual(args, {})
         self.assertEqual(args.subcommand, "new")
 
     def test_missing_subcommand(self):
-        parser = Parser()
-        parser.subcommand("list")
-        parser.subcommand("new")
-
-        with self.assertRaises(XCliError):
+        parser = Parser(subcommands={"list": Parser(), "new": Parser()})
+        with self.assertRaisesRegex(XCliError, "^missing subcommand$"):
             parser._parse([])
 
     def test_cannot_have_two_args_with_same_name(self):
-        parser = Parser().arg("name")
-        with self.assertRaises(XCliError):
-            parser.arg("name")
+        with self.assertRaisesRegex(XCliError, "^duplicate argument: username$"):
+            Parser(args=["username", "username"])
 
-    def test_cannot_have_subcommand_and_argument_with_same_name(self):
-        parser = Parser().arg("whatever")
-        with self.assertRaises(XCliError):
-            parser.subcommand("whatever")
-
-        parser = Parser()
-        parser.subcommand("whatever")
-        with self.assertRaises(XCliError):
-            parser.arg("whatever")
+    def test_cannot_have_subcommand_and_args(self):
+        with self.assertRaisesRegex(
+            XCliError, "^cannot have both arguments and subcommands$"
+        ):
+            Parser(args=["path"], subcommands={"list": Parser(), "new": Parser()})
 
     def test_help_flag(self):
-        self.assertEqual(Parser()._parse(["--help"]), {"--help": True})
+        args = Parser()._parse(["--help"])
+        self.assertTrue(args.help)
 
     def test_no_help_flag_with_helpless_setting(self):
         parser = Parser(helpless=True)
-        with self.assertRaises(XCliError):
+        with self.assertRaisesRegex(XCliError, "^unknown flag: --help$"):
             parser._parse(["--help"])
 
     def test_explicit_help_flag_with_helpless_setting(self):
-        parser = Parser(helpless=True).flag("--help")
+        parser = Parser(flags=["--help"], helpless=True)
         self.assertEqual(parser._parse(["--help"]), {"--help": True})
         self.assertEqual(parser._parse([]), {"--help": False})
 
@@ -156,7 +151,7 @@ s = lambda string: textwrap.dedent(string).lstrip("\n")  # noqa: E731
 
 class UsageTests(unittest.TestCase):
     def test_one_positional(self):
-        parser = Parser(program="itest").arg("firstname")
+        parser = Parser(program="itest", args=["firstname"])
         self.assertEqual(
             parser.usage(),
             s(
@@ -170,7 +165,7 @@ class UsageTests(unittest.TestCase):
         )
 
     def test_positional_and_flag(self):
-        parser = Parser(program="itest").arg("firstname").flag("--verbose")
+        parser = Parser(program="itest", args=["firstname"], flags=["--verbose"])
         self.assertEqual(
             parser.usage(),
             s(
@@ -187,10 +182,10 @@ class UsageTests(unittest.TestCase):
         )
 
     def test_positional_and_required_flag_with_arg(self):
-        parser = (
-            Parser(program="itest")
-            .arg("firstname")
-            .flag("--verbose", arg=True, required=True)
+        parser = Parser(
+            program="itest",
+            args=["firstname"],
+            flags=[Flag("--verbose", arg=True, required=True)],
         )
         self.assertEqual(
             parser.usage(),
@@ -208,7 +203,7 @@ class UsageTests(unittest.TestCase):
         )
 
     def test_flag_with_long_name(self):
-        parser = Parser(program="itest").flag("-v", "--verbose")
+        parser = Parser(program="itest", flags=[Flag("-v", "--verbose")])
         self.assertEqual(
             parser.usage(),
             s(
@@ -222,9 +217,10 @@ class UsageTests(unittest.TestCase):
         )
 
     def test_subcommand(self):
-        parser = Parser(program="itest")
-        parser.subcommand("edit").arg("file")
-        parser.subcommand("new").arg("file")
+        parser = Parser(
+            program="itest",
+            subcommands={"edit": Parser(args=["file"]), "new": Parser(args=["file"])},
+        )
         self.assertEqual(
             parser.usage(),
             s(
@@ -244,41 +240,46 @@ class UsageTests(unittest.TestCase):
 
 class RealParserTests(unittest.TestCase):
     def test_medium_parser(self):
-        p = Parser()
-        p.flag("--verbose")
-        p.subcommand("edit").arg("file")
-        p.subcommand("new").arg("file")
-        p.subcommand("list").flag("--sorted")
+        p = Parser(
+            subcommands={
+                "edit": Parser(args=["file"]),
+                "new": Parser(args=["file"]),
+                "list": Parser(flags=["--sorted"]),
+            },
+            flags=["--verbose"],
+        )
 
         args = p.parse(["edit", "a.txt"])
-        self.assertEqual(args, {"edit": {"file": "a.txt"}, "--verbose": False})
+        self.assertEqual(args, {"file": "a.txt", "--verbose": False})
         self.assertEqual(args.subcommand, "edit")
 
         args = p.parse(["new", "a.txt"])
-        self.assertEqual(args, {"new": {"file": "a.txt"}, "--verbose": False})
+        self.assertEqual(args, {"file": "a.txt", "--verbose": False})
         self.assertEqual(args.subcommand, "new")
 
         args = p.parse(["list"])
-        self.assertEqual(args, {"list": {"--sorted": False}, "--verbose": False})
+        self.assertEqual(args, {"--sorted": False, "--verbose": False})
         self.assertEqual(args.subcommand, "list")
 
     def test_hera_parser(self):
         # Based on https://github.com/iafisher/hera-py/blob/master/hera/main.py
-        p = Parser()
-        p.flag("-v", "--version")
-        p.flag("--credits")
-        p.flag("--no-color")
-        p.subcommand("debug").arg("path").flag("--throttle", arg=True)
-        p.subcommand("assemble").arg("path").flag("--code").flag("--data")
-        p.subcommand("preprocess").arg("path")
-        p.subcommand("disassemble").arg("path")
-        p.subcommand("run", default=True).arg("path")
+        p = Parser(
+            subcommands={
+                "debug": Parser(args=["path"], flags=[Flag("--throttle", arg=True)]),
+                "assemble": Parser(args=["path"], flags=["--code", "--data"]),
+                "preprocess": Parser(args=["path"]),
+                "disassemble": Parser(args=["path"]),
+                "run": Parser(args=["path"]),
+            },
+            flags=[Flag("-v", "--version"), "--credits", "--no-color"],
+            default_subcommand="run",
+        )
 
         args = p.parse(["a.txt"])
         self.assertEqual(
             args,
             {
-                "run": {"path": "a.txt"},
+                "path": "a.txt",
                 "--credits": False,
                 "--no-color": False,
                 "--version": False,
@@ -289,7 +290,8 @@ class RealParserTests(unittest.TestCase):
         self.assertEqual(
             args,
             {
-                "debug": {"path": "a.txt", "--throttle": "10"},
+                "path": "a.txt",
+                "--throttle": "10",
                 "--credits": False,
                 "--no-color": True,
                 "--version": False,

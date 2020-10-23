@@ -1,9 +1,3 @@
-"""
-A command-line argument parser.
-
-Author: Ian Fisher (iafisher@fastmail.com)
-Version: October 2020
-"""
 import os
 import sys
 
@@ -14,199 +8,204 @@ from ._exception import XCliError
 Nothing = object()
 
 
+class Arg:
+    def __init__(self, name, *, default=Nothing, type=None):
+        self.name = name
+        self.default = default
+        self.type = type
+
+
+class Flag:
+    def __init__(
+        self, name, longname="", *, arg=False, required=False, default=Nothing
+    ):
+        self.name = name
+        self.longname = longname
+        self.arg = arg
+        self.required = required
+        self.default = default
+
+    def get_name(self):
+        return self.longname or self.name
+
+
+class Args(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.subcommand = None
+        self.help = False
+
+
 class Parser:
-    def __init__(self, program=None, *, helpless=False):
-        self.program = os.path.basename(sys.argv[0]) if not program else program
-        self.positionals = []
-        self.flag_nicknames = {}
-        self.flags = {}
-        self.subcommands = {}
-        self.default_subcommand = None
-        self.helpless = helpless
-
-    def arg(self, name, *, default=Nothing, type=None):
-        # TODO: Help text.
-        if name.startswith("-"):
-            raise XCliError(f"argument name cannot start with dash: {name}")
-
-        if default is Nothing and any(
-            p.default is not Nothing for p in self.positionals
-        ):
-            raise XCliError("argument without default may not follow one with default")
-
-        if any(p.name == name for p in self.positionals):
-            raise XCliError(f"duplicate argument name: {name}")
-
-        if name in self.subcommands:
-            raise XCliError("argument cannot have same name as subcommand")
-
-        # TODO: Positionals shouldn't be allowed at all with subcommands.
-
-        self.positionals.append(ArgSpec(name, default=default, type=type))
-        return self
-
-    def flag(self, name, longname=None, *, arg=False, default=Nothing, required=False):
-        if required is True and arg is False:
-            raise XCliError("flag without an argument cannot be required")
-
-        if not name.startswith("-"):
-            raise XCliError(f"flag name must start with dash: {name}")
-
-        if name in self.flags:
-            raise XCliError(f"duplicate flag name: {name}")
-
-        spec = FlagSpec(name, longname, arg=arg, default=default, required=required)
-        if longname:
-            self.flags[longname] = spec
-            self.flag_nicknames[name] = longname
+    def __init__(
+        self,
+        *,
+        program=None,
+        args=None,
+        flags=None,
+        subcommands=None,
+        default_subcommand=None,
+        helpless=False,
+    ):
+        if args is None:
+            args = []
         else:
-            self.flags[name] = spec
+            args = [Arg(arg) if isinstance(arg, str) else arg for arg in args]
 
-        return self
+        if flags is None:
+            flags = []
+        else:
+            flags = [Flag(flag) if isinstance(flag, str) else flag for flag in flags]
 
-    def subcommand(self, name, *, default=False):
-        if any(p.name == name for p in self.positionals):
-            raise XCliError("subcommand cannot have same name as argument")
+        if subcommands is None:
+            subcommands = {}
 
-        if default is True:
-            if self.default_subcommand:
-                raise XCliError("cannot have multiple default subcommands")
+        if default_subcommand is not None and default_subcommand not in subcommands:
+            raise XCliError("default subcommand does not match any known subcommands")
 
-            self.default_subcommand = name
+        self.verify_args(args)
+        self.verify_flags(flags)
 
-        subparser = Parser()
-        self.subcommands[name] = subparser
-        return subparser
+        if args and subcommands:
+            raise XCliError("cannot have both arguments and subcommands")
+
+        self.args = args
+        self.flags = {}
+        self.flag_nicknames = {}
+        for flag in flags:
+            self.flags[flag.get_name()] = flag
+            if flag.name and flag.longname:
+                self.flag_nicknames[flag.name] = flag.get_name()
+
+        self.program = os.path.basename(sys.argv[0]) if program is None else program
+        self.subcommands = subcommands
+        self.default_subcommand = default_subcommand
+        self.helpless = helpless
 
     def parse(self, args=None):
         if args is None:
             args = sys.argv[1:]
 
         try:
-            return self._parse(args)
+            result = self._parse(args)
         except XCliError as e:
             print(f"Error: {e}\n", file=sys.stderr)
             # TODO: Use textwrap.
             print(self.usage(), end="", flush=True, file=sys.stderr)
             sys.exit(1)
 
+        if result.help:
+            self.usage()
+        else:
+            return result
+
         # TODO: Handle --help.
 
     def _parse(self, args):
-        self.args = args
-        self.parsed_args = Args()
-        self.positionals_index = 0
-        self.args_index = 0
+        state = ParseState(args)
 
-        while self.args_index < len(self.args):
-            arg = self.args[self.args_index]
+        while state.index < len(args):
+            arg = args[state.index]
+
+            if arg == "--help" and not self.helpless:
+                state.result.help = True
+                return state.result
+
             if arg.startswith("-"):
-                self._handle_flag()
-            elif self.positionals_index == 0 and self.subcommands:
-                self._handle_subcommand()
+                self.handle_flag(state, arg)
             else:
-                self._handle_arg()
+                if self.subcommands:
+                    self.handle_subcommand(state, arg)
+                else:
+                    self.handle_arg(state, arg)
 
-        if self.subcommands and not self.parsed_args.subcommand:
+        self.fill_in_default_args(state)
+
+        if self.subcommands and state.result.subcommand is None:
             raise XCliError("missing subcommand")
 
-        # Try to satisfy any missing positionals with default values.
-        while self.positionals_index < len(self.positionals):
-            spec = self.positionals[self.positionals_index]
-            if spec.default is Nothing:
-                break
+        return state.result
 
-            self.parsed_args[spec.name] = spec.default
-            self.positionals_index += 1
-
-        if self.positionals_index < len(self.positionals):
-            raise XCliError("too few arguments")
-
-        # Check for missing flags and set to False or default value if not required.
-        for flag in self.flags.values():
-            if flag.get_name() not in self.parsed_args:
-                if flag.required and flag.default is Nothing:
-                    raise XCliError(f"missing flag: {flag.get_name()}")
-
-                if flag.arg:
-                    self.parsed_args[flag.get_name()] = (
-                        flag.default if flag.default is not Nothing else None
-                    )
-                else:
-                    self.parsed_args[flag.get_name()] = False
-
-        return self.parsed_args
-
-    def _handle_arg(self):
-        arg = self.args[self.args_index]
-        if self.positionals_index >= len(self.positionals):
+    def handle_arg(self, state, arg):
+        if state.args_index >= len(self.args):
             raise XCliError(f"extra argument: {arg}")
 
-        spec = self.positionals[self.positionals_index]
-        if spec.type is not None:
+        argspec = self.args[state.args_index]
+        if argspec.type is not None:
             try:
-                arg = spec.type(arg)
+                arg = argspec.type(arg)
             except Exception as e:
                 raise XCliError(f"could not parse typed argument: {arg}") from e
 
-        self.parsed_args[self.positionals[self.positionals_index].name] = arg
-        self.positionals_index += 1
-        self.args_index += 1
+        state.result[argspec.name] = arg
+        state.args_index += 1
+        state.index += 1
 
-    def _handle_flag(self):
-        # TODO: Allow subcommands to start with dashes.
-        flag = self.args[self.args_index]
-
+    def handle_flag(self, state, flag):
         if "=" in flag:
-            flag, value = flag.split("=", maxsplit=1)
+            flag, arg = flag.split("=", maxsplit=1)
         else:
-            value = None
+            arg = None
 
-        if not self.helpless and flag == "--help":
-            self.parsed_args["--help"] = True
-            self.args_index += 1
-        else:
-            if flag in self.flag_nicknames:
-                spec = self.flags[self.flag_nicknames[flag]]
-            elif flag in self.flags:
-                spec = self.flags[flag]
-            else:
+        flagspec = self.flags.get(flag)
+        if flagspec is None:
+            nickname = self.flag_nicknames.get(flag)
+            if nickname is None:
                 raise XCliError(f"unknown flag: {flag}")
 
-            if spec.arg:
-                # Value may be provided as part of the flag string, e.g. `--x=y`.
-                if value is not None:
-                    self.parsed_args[spec.get_name()] = value
-                    self.args_index += 1
-                    return
+            flagspec = self.flags.get(nickname)
 
-                if self.args_index == len(self.args) - 1:
-                    raise XCliError(f"expected argument for {flag}")
+        if flagspec.arg:
+            if not arg:
+                if state.index == len(state.args) - 1:
+                    raise XCliError(f"missing argument for flag: {flag}")
 
-                self.parsed_args[spec.get_name()] = self.args[self.args_index + 1]
-                self.args_index += 2
-            else:
-                self.parsed_args[spec.get_name()] = True
-                self.args_index += 1
+                arg = state.args[state.index + 1]
 
-    def _handle_subcommand(self):
-        arg = self.args[self.args_index]
-        if arg not in self.subcommands and not self.default_subcommand:
-            raise XCliError(f"unknown subcommand: {arg}")
-
-        if arg in self.subcommands:
-            subcommand = arg
-            self.args_index += 1
-            self.parsed_args.subcommand = arg
+            state.result[flagspec.get_name()] = arg
+            state.index += 2
         else:
-            subcommand = self.default_subcommand
+            if arg:
+                raise XCliError(f"flag does not take argument: {flag}")
 
-        subparser = self.subcommands[subcommand]
-        self.parsed_args.subcommand = subcommand
-        self.parsed_args[subcommand] = subparser._parse(self.args[self.args_index :])
-        # Set `args_index` to the length of `args` so that parsing ends after this
-        # method returns.
-        self.args_index = len(self.args)
+            state.result[flagspec.get_name()] = True
+            state.index += 1
+
+    def handle_subcommand(self, state, subcommand):
+        subparser = self.subcommands.get(subcommand)
+        if subparser is None:
+            if self.default_subcommand is None:
+                raise XCliError(f"unknown subcommand: {subcommand}")
+
+            subcommand = self.default_subcommand
+            subparser = self.subcommands[self.default_subcommand]
+            start_index = state.index
+        else:
+            start_index = state.index + 1
+
+        result = subparser._parse(state.args[start_index:])
+        state.index = len(state.args)
+        state.result.update(result)
+        state.result.subcommand = subcommand
+
+    def fill_in_default_args(self, state):
+        while state.args_index < len(self.args):
+            argspec = self.args[state.args_index]
+            if argspec.default is not Nothing:
+                state.result[argspec.name] = argspec.default
+            else:
+                raise XCliError(f"missing argument: {argspec.name}")
+
+            state.args_index += 1
+
+        for flagspec in self.flags.values():
+            if flagspec.get_name() not in state.result:
+                if flagspec.default is not Nothing:
+                    state.result[flagspec.get_name()] = flagspec.default
+                elif flagspec.required:
+                    raise XCliError(f"missing required flag: {flagspec.name}")
+                else:
+                    state.result[flagspec.get_name()] = None if flagspec.arg else False
 
     def usage(self):
         # TODO: Unit tests for usage string.
@@ -225,10 +224,10 @@ class Parser:
                 builder.append(parser._brief_usage())
                 builder.append("\n")
 
-        if self.positionals:
+        if self.args:
             builder.append("Positional arguments:\n")
-            for positional in self.positionals:
-                builder.append(f"  {positional.name}\n")
+            for spec in self.args:
+                builder.append(f"  {spec.name}\n")
 
             if self.flags:
                 builder.append("\n")
@@ -236,7 +235,7 @@ class Parser:
         if self.flags:
             builder.append("Flags:\n")
             # TODO: This will print duplicates for flags with long names.
-            for spec in sorted(self.flags.values(), key=lambda spec: spec.name):
+            for spec in sorted(self.flags.values(), key=lambda spec: spec.get_name):
                 if spec.longname:
                     name = spec.name + ", " + spec.longname
                 else:
@@ -256,39 +255,60 @@ class Parser:
                 builder.append(" ")
                 builder.append(flag.name + "=<arg>")
 
-        for positional in self.positionals:
+        for spec in self.args:
             builder.append(" ")
-            if positional.default is not Nothing:
-                builder.append("[<" + positional.name + ">]")
+            if spec.default is not Nothing:
+                builder.append("[<" + spec.name + ">]")
             else:
-                builder.append("<" + positional.name + ">")
+                builder.append("<" + spec.name + ">")
 
         if self.subcommands:
             builder.append(" <subcommand>")
 
         return "".join(builder)
 
+    def verify_args(self, args):
+        taken = set()
+        seen_default = False
+        for spec in args:
+            if spec.default is not Nothing:
+                seen_default = True
 
-class Args(dict):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.subcommand = None
+            if spec.name.startswith("-"):
+                raise XCliError(f"positional name may not start with dash: {spec.name}")
+
+            if spec.default is Nothing and seen_default:
+                raise XCliError(
+                    "argument without default may not follow one with default"
+                )
+
+            if spec.name in taken:
+                raise XCliError(f"duplicate argument: {spec.name}")
+
+            taken.add(spec.name)
+
+    def verify_flags(self, flags):
+        taken = set()
+        for spec in flags:
+            if spec.name in taken:
+                raise XCliError(f"duplicate flag: {spec.name}")
+
+            if spec.longname and spec.longname in taken:
+                raise XCliError(f"duplicate flag: {spec.longname}")
+
+            if spec.required and not spec.arg:
+                raise XCliError(
+                    f"flag cannot be required without an arg: {spec.get_name()}"
+                )
+
+            taken.add(spec.name)
+            if spec.longname:
+                taken.add(spec.longname)
 
 
-class ArgSpec:
-    def __init__(self, name, *, default, type):
-        self.name = name
-        self.default = default
-        self.type = type
-
-
-class FlagSpec:
-    def __init__(self, name, longname, *, arg, default, required):
-        self.name = name
-        self.longname = longname
-        self.arg = arg
-        self.default = default
-        self.required = required
-
-    def get_name(self):
-        return self.longname if self.longname else self.name
+class ParseState:
+    def __init__(self, args):
+        self.args = args
+        self.index = 0
+        self.args_index = 0
+        self.result = Args()
