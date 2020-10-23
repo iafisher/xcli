@@ -1,5 +1,6 @@
 import textwrap
 import unittest
+from unittest.mock import MagicMock
 
 from xcli import Arg, Flag, Parser, XCliError
 
@@ -143,6 +144,49 @@ class ParserTests(unittest.TestCase):
         parser = Parser(flags=["--help"], helpless=True)
         self.assertEqual(parser._parse(["--help"]), {"--help": True})
         self.assertEqual(parser._parse([]), {"--help": False})
+
+    def test_dispatch(self):
+        dispatch_edit = MagicMock()
+        dispatch_new = MagicMock()
+
+        parser = Parser(
+            subcommands={
+                "edit": Parser(args=["path"], dispatch=dispatch_edit),
+                "new": Parser(
+                    args=["title", "path"], flags=["--verbose"], dispatch=dispatch_new
+                ),
+            }
+        )
+        parser.dispatch(["new", "Lorem ipsum", "lol.txt"])
+
+        dispatch_new.assert_called_with("Lorem ipsum", "lol.txt", verbose=False)
+        dispatch_edit.assert_not_called()
+
+    def test_dispatch_with_invalid_identifier_as_flag(self):
+        parser = Parser(subcommands={"cmd": Parser(flags=["-0"], dispatch=MagicMock())})
+        with self.assertRaisesRegex(
+            XCliError, r"^flag name is not a valid Python identifier: 0$"
+        ):
+            parser.dispatch(["cmd"])
+
+    def test_dispatch_with_python_keyword_as_flag(self):
+        parser = Parser(
+            subcommands={"cmd": Parser(flags=["--if"], dispatch=MagicMock())}
+        )
+        with self.assertRaisesRegex(XCliError, r"^flag name is a Python keyword: if$"):
+            parser.dispatch(["cmd"])
+
+    def test_dispatch_without_subcommands(self):
+        parser = Parser()
+        with self.assertRaisesRegex(XCliError, "^cannot dispatch without subcommands$"):
+            parser.dispatch()
+
+    def test_dispatch_with_undefined_dispatch_function(self):
+        parser = Parser(subcommands={"cmd": Parser()})
+        with self.assertRaisesRegex(
+            XCliError, "^no dispatch function defined for subcommand: cmd$"
+        ):
+            parser.dispatch(["cmd"])
 
 
 # Helper function to let me write multi-line strings more readably.

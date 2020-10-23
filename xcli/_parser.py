@@ -1,5 +1,7 @@
+import keyword
 import os
 import sys
+from collections import OrderedDict
 
 from ._exception import XCliError
 
@@ -29,7 +31,7 @@ class Flag:
         return self.longname or self.name
 
 
-class Args(dict):
+class Args(OrderedDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.subcommand = None
@@ -46,6 +48,7 @@ class Parser:
         subcommands=None,
         default_subcommand=None,
         helpless=False,
+        dispatch=None,
     ):
         if args is None:
             args = []
@@ -81,6 +84,46 @@ class Parser:
         self.subcommands = subcommands
         self.default_subcommand = default_subcommand
         self.helpless = helpless
+        # It can't be called `dispatch` because that would conflict with the method.
+        self.dispatch_function = dispatch
+
+    def dispatch(self, args=None):
+        # NOTE: This method can raise an exception when the parser is mis-configured,
+        # but for any errors caused by the actual command-line arguments that are being
+        # parsed, it should print an error message instead.
+
+        if not self.subcommands:
+            raise XCliError("cannot dispatch without subcommands")
+
+        result = self.parse(args)
+        dispatch_function = self.subcommands[result.subcommand].dispatch_function
+
+        if not dispatch_function:
+            raise XCliError(
+                f"no dispatch function defined for subcommand: {result.subcommand}"
+            )
+
+        args = []
+        kwargs = {}
+        # This loop relies on the fact that `result` is an ordered dictionary so that
+        # the positional arguments are passed to the dispatch function in the correct
+        # order.
+        for name, value in result.items():
+            if name.startswith("-"):
+                name = name.lstrip("-").replace("-", "_")
+                if not name.isidentifier():
+                    raise XCliError(
+                        f"flag name is not a valid Python identifier: {name}"
+                    )
+
+                if keyword.iskeyword(name):
+                    raise XCliError(f"flag name is a Python keyword: {name}")
+
+                kwargs[name] = value
+            else:
+                args.append(value)
+
+        dispatch_function(*args, **kwargs)
 
     def parse(self, args=None):
         if args is None:
@@ -95,7 +138,8 @@ class Parser:
             sys.exit(1)
 
         if result.help:
-            self.usage()
+            print(self.usage(), end="", flush=True)
+            sys.exit(0)
         else:
             return result
 
