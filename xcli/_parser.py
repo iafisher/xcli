@@ -255,7 +255,6 @@ class Parser:
                     state.result[flagspec.get_name()] = None if flagspec.arg else False
 
     def usage(self):
-        # TODO: Unit tests for usage string.
         builder = []
         builder.append("Usage: ")
         builder.append(self.program)
@@ -273,16 +272,16 @@ class Parser:
         if self.args:
             builder.append("\n\n")
             builder.append("Positional arguments:\n")
-            table = Table(columns=2, padding=4)
+            table = Table(padding=4)
             for spec in self.args:
-                table.add_row("  " + spec.name, spec.help)
+                table.row("  " + spec.name, spec.help)
 
             builder.append(str(table))
 
         if self.flags:
             builder.append("\n\n")
             builder.append("Flags:\n")
-            table = Table(columns=2, padding=4)
+            table = Table(padding=4)
             for spec in sorted(self.flags.values(), key=lambda spec: spec.name):
                 if spec.longname:
                     name = spec.name + ", " + spec.longname
@@ -290,9 +289,9 @@ class Parser:
                     name = spec.name
 
                 if spec.arg:
-                    table.add_row(f"  {name} <arg>", spec.help)
+                    table.row(f"  {name} <arg>", spec.help)
                 else:
-                    table.add_row(f"  {name}", spec.help)
+                    table.row(f"  {name}", spec.help)
 
                 builder.append(str(table))
 

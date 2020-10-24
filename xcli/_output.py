@@ -1,4 +1,3 @@
-import enum
 import random
 import shutil
 import string
@@ -7,48 +6,26 @@ import textwrap
 from ._exception import XCliError
 
 
-class Alignment(enum.Enum):
-    LEFT = enum.auto()
-    RIGHT = enum.auto()
-    CENTER = enum.auto()
-
-
 class Table:
     """
     Content-aligned textual tables.
 
-        table = Table(columns=2, alignment=[Alignment.LEFT, Alignment.RIGHT])
-        table.add_row("Revenue: ", revenue)
-        table.add_row("Expenses: ", expenses)
-        table.add_row("Profit: ", revenue - expenses)
+        table = Table(alignment="lr")
+        table.row("Revenue: ", revenue)
+        table.row("Expenses: ", expenses)
+        table.row("Profit: ", revenue - expenses)
         print(table)
     """
 
-    def __init__(self, *, columns, padding=0, alignment=None):
-        self.columns = columns
+    def __init__(self, *, padding=0, alignment=None):
+        self.columns = 0
         self.padding = padding
+        self.alignment = alignment
         self.rows = []
 
-        if alignment is None:
-            self.alignment = [Alignment.LEFT] * self.columns
-        elif isinstance(alignment, Alignment):
-            self.alignment = [alignment] * self.columns
-        else:
-            if len(alignment) != self.columns:
-                raise XCliError("length of alignment does not equal number of columns")
-
-            self.alignment = alignment
-
-    def add_row(self, *items):
+    def row(self, *items):
         items = [str(item) for item in items]
-        if len(items) > self.columns:
-            raise XCliError(
-                f"can't fit {len(items)} item(s) in {self.columns} column(s)"
-            )
-
-        if len(items) < self.columns:
-            items.extend([""] * (self.columns - len(items)))
-
+        self.columns = max(self.columns, len(items))
         self.rows.append(items)
 
     def __str__(self):
@@ -68,6 +45,11 @@ class Table:
             else:
                 raise XCliError("table is empty")
 
+        # Make sure all rows have the same number of columns.
+        for row in self.rows:
+            while len(row) < self.columns:
+                row.append("")
+
         if width is None:
             width = shutil.get_terminal_size().columns
 
@@ -82,7 +64,8 @@ class Table:
         builder = []
         for row in self.rows:
             cells = []
-            for cell, width, alignment in zip(row, column_widths, self.alignment):
+            for i, (cell, width) in enumerate(zip(row, column_widths)):
+                alignment = self.get_alignment(i)
                 cells.append(self.format_cell(cell, width, alignment))
 
             height = max(map(len, cells))
@@ -90,7 +73,11 @@ class Table:
                 while len(cell) < height:
                     cell.append(" " * width)
 
-            builder.append(self.combine_cells(cells, padding=self.padding))
+            builder.append(
+                self.combine_cells(
+                    cells, padding=self.padding, trim_whitespace=trim_whitespace
+                )
+            )
 
         if trim_whitespace:
             builder = [line.rstrip() for line in builder]
@@ -123,6 +110,12 @@ class Table:
 
         return column_widths
 
+    def get_alignment(self, index):
+        if not self.alignment or index >= len(self.alignment):
+            return "l"
+        else:
+            return self.alignment[index]
+
     @staticmethod
     def format_cell(text, width, alignment):
         if len(text) <= width:
@@ -132,7 +125,7 @@ class Table:
             return [align(line, width, alignment) for line in lines]
 
     @staticmethod
-    def combine_cells(cells, *, padding):
+    def combine_cells(cells, *, padding, trim_whitespace):
         lines = []
         for cell in cells:
             for i, line in enumerate(cell):
@@ -142,7 +135,10 @@ class Table:
                 lines[i].append(line)
 
         spaces = " " * padding
-        return "\n".join(spaces.join(cells) for cells in lines)
+        lines = [spaces.join(cells) for cells in lines]
+        if trim_whitespace:
+            lines = [line.rstrip() for line in lines]
+        return "\n".join(lines)
 
 
 def lorem_ipsum(words=100):
@@ -155,9 +151,12 @@ def lorem_ipsum(words=100):
 
 
 def align(text, width, alignment):
-    if alignment == Alignment.RIGHT:
+    alignment = alignment.lower()
+    if alignment == "r":
         return text.rjust(width)
-    elif alignment == Alignment.CENTER:
+    elif alignment == "c":
         return text.center(width)
-    else:
+    elif alignment == "l":
         return text.ljust(width)
+    else:
+        raise XCliError(f"invalid alignment: {alignment}")
