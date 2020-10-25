@@ -145,6 +145,14 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(parser._parse(["--help"]), {"--help": True})
         self.assertEqual(parser._parse([]), {"--help": False})
 
+    def test_help_subcommand(self):
+        args = Parser(subcommands={"test": Parser()})._parse(["help"])
+        self.assertTrue(args.help)
+
+    def test_help_subcommand_for_another_subcommand(self):
+        args = Parser(subcommands={"test": Parser()})._parse(["help", "test"])
+        self.assertEqual(args.help, "test")
+
     def test_dispatch(self):
         dispatch_edit = MagicMock()
         dispatch_new = MagicMock()
@@ -282,7 +290,9 @@ class UsageTests(unittest.TestCase):
 
                 Subcommands:
                   edit <file>
-                  new <file>"""
+                  new <file>
+
+                Run `itest help <subcommand>` for detailed help."""
             ),
         )
 

@@ -170,12 +170,21 @@ class Parser:
             if flag.name and flag.longname:
                 self.flag_nicknames[flag.name] = flag.get_name()
 
+        for subcommand, subparser in subcommands.items():
+            if subparser.subcommands:
+                raise XCliError("subcommand cannot have subcommands of its own")
+
+            subparser.parent_parser = self
+            subparser.parent_parser_subcommand = subcommand
+
         self.program = os.path.basename(sys.argv[0]) if program is None else program
         self.subcommands = subcommands
         self.default_subcommand = default_subcommand
         self.helpless = helpless
         # It can't be called `dispatch` because that would conflict with the method.
         self.dispatch_function = dispatch
+        self.parent_parser = None
+        self.parent_parser_subcommand = None
 
     def dispatch(self, args=None):
         # NOTE: This method can raise an exception when the parser is mis-configured,
@@ -228,7 +237,10 @@ class Parser:
             sys.exit(1)
 
         if result.help:
-            print(self.usage())
+            if result.help is True:
+                print(self.usage())
+            else:
+                print(self.subcommands[result.help].usage())
             sys.exit(0)
         else:
             return result
@@ -241,9 +253,19 @@ class Parser:
         while state.index < len(args):
             arg = args[state.index]
 
-            if arg == "--help" and not self.helpless:
-                state.result.help = True
-                return state.result
+            if not self.helpless:
+                if arg == "--help":
+                    state.result.help = True
+                    return state.result
+                elif self.subcommands and arg == "help":
+                    if (
+                        state.index + 1 < len(args)
+                        and args[state.index + 1] in self.subcommands
+                    ):
+                        state.result.help = args[state.index + 1]
+                    else:
+                        state.result.help = True
+                    return state.result
 
             if arg.startswith("-"):
                 self.handle_flag(state, arg)
@@ -344,8 +366,16 @@ class Parser:
     def usage(self):
         builder = []
         builder.append("Usage: ")
-        builder.append(self.program)
-        builder.append(self._brief_usage())
+        if not self.parent_parser:
+            builder.append(self.program)
+        else:
+            builder.append(self.parent_parser.program)
+            builder.append(" ")
+            builder.append(self.parent_parser_subcommand)
+        brief_usage = self.brief_usage()
+        if brief_usage:
+            builder.append(" ")
+            builder.append(brief_usage)
 
         if self.subcommands:
             builder.append("\n\n")
@@ -354,7 +384,10 @@ class Parser:
                 builder.append("\n")
                 builder.append("  ")
                 builder.append(subcommand)
-                builder.append(parser._brief_usage())
+                brief_usage = parser.brief_usage()
+                if brief_usage:
+                    builder.append(" ")
+                    builder.append(brief_usage)
 
         if self.args:
             builder.append("\n\n")
@@ -382,26 +415,28 @@ class Parser:
 
                 builder.append(str(table))
 
+        if self.subcommands and not self.helpless:
+            builder.append("\n\n")
+            builder.append(f"Run `{self.program} help <subcommand>` for detailed help.")
+
         return "".join(builder)
 
-    def _brief_usage(self):
+    def brief_usage(self):
         builder = []
         for flag in sorted(self.flags.values(), key=lambda spec: spec.name):
             if flag.required and flag.arg:
-                builder.append(" ")
                 builder.append(flag.name + "=<arg>")
 
         for spec in self.args:
-            builder.append(" ")
             if spec.default is not Nothing:
                 builder.append("[<" + spec.name + ">]")
             else:
                 builder.append("<" + spec.name + ">")
 
         if self.subcommands:
-            builder.append(" <subcommand>")
+            builder.append("<subcommand>")
 
-        return "".join(builder)
+        return " ".join(builder)
 
     def verify_args(self, args):
         taken = set()
