@@ -151,6 +151,10 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(parser._parse(["--help"]), {"--help": True})
         self.assertEqual(parser._parse([]), {"--help": False})
 
+    def test_help_flag_passed_to_subcommand(self):
+        args = Parser(subcommands={"test": Parser()})._parse(["test", "--help"])
+        self.assertEqual(args.help, "test")
+
     def test_help_subcommand(self):
         args = Parser(subcommands={"test": Parser()})._parse(["help"])
         self.assertTrue(args.help)

@@ -343,6 +343,8 @@ class Parser:
         state.index = len(state.args)
         state.result.update(result)
         state.result.subcommand = subcommand
+        if result.help:
+            state.result.help = subcommand
 
     def fill_in_default_args(self, state):
         while state.args_index < len(self.args):
