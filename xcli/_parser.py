@@ -11,8 +11,44 @@ from ._output import Table
 Nothing = object()
 
 
+def parse_args(*args, **kwargs):
+    """
+    Helper function to construct a Parser instance and immediately parse the command-
+    line arguments.
+    """
+    parser = Parser(*args, **kwargs)
+    return parser.parse()
+
+
+def dispatch(*args, **kwargs):
+    """
+    Helper function to construct a Parser instance and immediately dispatch on the
+    command-line arguments.
+    """
+    parser = Parser(*args, **kwargs)
+    parser.dispatch()
+
+
 class Arg:
+    """
+    Represents a positional argument.
+    """
+
     def __init__(self, name, *, help="", default=Nothing, type=None):
+        """
+        Parameters:
+            name: The name of the argument, to be displayed in the help message.
+
+            help: A help string describing the purpose/usage of the arg.
+
+            default: The default value for the arg. Note that passing default=None is
+                different from leaving it unspecified: if `default` is unspecified and
+                the argument is omitted from the command-line, it will cause an error,
+                whereas if `default` is None, the arg's value will be set to None.
+
+            type: The type of the argument. Should be a function that accepts and
+                returns a single value, e.g. `int` or `float`.
+        """
         self.name = name
         self.help = help
         self.default = default
@@ -20,9 +56,32 @@ class Arg:
 
 
 class Flag:
+    """
+    Represents a flag argument.
+    """
+
     def __init__(
         self, name, longname="", *, help="", arg=False, required=False, default=Nothing
     ):
+        """
+        Parameters:
+            name: The name of the flag. Must begin with a dash.
+
+            longname: The optional long name of the flag. Must begin with two dashes.
+
+            help: A help string describing the purpose/usage of the flag.
+
+            arg: Whether the flag takes an argument or not.
+
+            required: Whether the flag is required or not. Only accepted if `arg` is
+                True.
+
+            default: The default value for the flag. Note that passing default=None is
+                different from leaving it unspecified: if `default` is unspecified, the
+                flag is required, and it is omitted from the command-line, it will cause
+                an error, whereas if `default` is None, the flag's value will be set to
+                None.
+        """
         self.name = name
         self.longname = longname
         self.help = help
@@ -35,6 +94,10 @@ class Flag:
 
 
 class Args(OrderedDict):
+    """
+    Represents a program's parsed command-line arguments.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.subcommand = None
@@ -53,6 +116,30 @@ class Parser:
         helpless=False,
         dispatch=None,
     ):
+        """
+        Parameters:
+            program: The name of the program, to display in the help string. Defaults to
+                `sys.argv[0]`.
+
+            args: The program's positional arguments, as a list of strings and Arg
+                instances. If this parameter is specified, then `subcommands` must be
+                None.
+
+            flags: The program's flags, as a list of strings and Flag instances.
+
+            subcommands: The program's subcommands, as a map from strings to Parser
+                instances. If this parameter is specified, then `args` must be None.
+
+            default_subcommand: The default subcommand to use, if no subcommand was
+                specified on the command line.
+
+            helpless: If True, the parser will not recognize --help as a special flag or
+                help as a special subcommand.
+
+            dispatch: A function to dispatch to. Should only be specified for Parsers
+                for a subcommand.
+        """
+
         if args is None:
             args = []
         else:
