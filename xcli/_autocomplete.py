@@ -245,10 +245,20 @@ def sequence_to_autocomplete(sequence, *, fuzzy=False):
     Matching is case-insensitive.
     """
     sequence = [x.lower() for x in sequence]
-    if fuzzy:
-        return lambda chars: [x for x in sequence if chars.lower() in x]
-    else:
-        return lambda chars: [x for x in sequence if x.startswith(chars.lower())]
+
+    def autocomplete(chars):
+        chars = chars.lower()
+        prefix_matches = []
+        substring_matches = []
+        for x in sequence:
+            if x.startswith(chars):
+                prefix_matches.append(x)
+            elif fuzzy and chars in x:
+                substring_matches.append(x)
+
+        return prefix_matches + substring_matches
+
+    return autocomplete
 
 
 class Printer:
