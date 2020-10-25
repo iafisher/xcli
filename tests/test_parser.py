@@ -116,6 +116,12 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(args, {})
         self.assertEqual(args.subcommand, "new")
 
+    def test_cannot_have_nested_subcommands(self):
+        with self.assertRaisesRegex(
+            XCliError, "subcommand cannot have subcommands of its own"
+        ):
+            Parser(subcommands={"one": Parser(subcommands={"two": Parser()})})
+
     def test_missing_subcommand(self):
         parser = Parser(subcommands={"list": Parser(), "new": Parser()})
         with self.assertRaisesRegex(XCliError, "^missing subcommand$"):
