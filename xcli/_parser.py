@@ -386,8 +386,9 @@ class UsageBuilder:
         if schema.subcommands:
             self._build_subcommands_section(list(schema.subcommands.values()))
 
-        if args:
-            self._build_args_section(args)
+        args_with_help = [arg for arg in args if arg.help]
+        if args_with_help:
+            self._build_args_section(args_with_help)
 
         if flags:
             self._build_flags_section(flags)

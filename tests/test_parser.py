@@ -352,9 +352,6 @@ class UsageBuilderTests(unittest.TestCase):
                 xyz: Test description
 
                 Usage: xyz <path>
-
-                Arguments:
-                  <path>
                 """
             ),
         )
