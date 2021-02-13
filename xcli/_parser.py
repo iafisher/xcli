@@ -387,14 +387,17 @@ class UsageBuilder:
         if flags:
             self._build_flags_section(flags)
 
+        if not schema.positionals and not schema.flags and not schema.subcommands:
+            if subcommand:
+                self.sections.append(["This subcommand accepts no flags or arguments."])
+            else:
+                self.sections.append(["This program accepts no flags or arguments."])
+
         if schema.subcommands:
             self.sections.append([f"Run `{name} subcommand --help` for detailed help."])
 
         if subcommand:
             self.sections.append([f"Run `{name} --help` for general help."])
-
-        if not schema.positionals and not schema.flags and not schema.subcommands:
-            self.sections.append(["This program accepts no flags or arguments."])
 
         return "\n\n".join("\n".join(section) for section in self.sections)
 
