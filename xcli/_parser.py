@@ -30,6 +30,8 @@ class ArgumentParser:
         except XCliError as e:
             if interactive:
                 print("Error: " + str(e), file=sys.stderr)
+                print(file=sys.stderr)
+                print(f"Run `{self.name} --help` for help.", file=sys.stderr)
                 sys.exit(1)
             else:
                 raise e
