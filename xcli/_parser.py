@@ -252,6 +252,9 @@ class ParserImpl:
         self.index = len(self.args)
 
     def _handle_missing_args(self):
+        if self.schema.subcommands and not self.result.subcommand:
+            raise XCliError("expected subcommand")
+
         while self.schema_index < len(self.schema.positionals):
             missing = self.schema.positionals[self.schema_index]
             if missing.default is not Nothing:

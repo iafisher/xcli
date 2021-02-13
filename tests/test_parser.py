@@ -295,6 +295,11 @@ class ParserErrorTests(unittest.TestCase):
         ):
             parser.parse(["--age", "a"])
 
+    def test_missing_subcommand(self):
+        parser = ArgumentParser([Subcommand("a"), Subcommand("b")])
+        with self.assertRaisesRegex(XCliError, "^expected subcommand$"):
+            parser.parse([])
+
 
 # Helper function to write multi-line strings more readably.
 s = lambda string: textwrap.dedent(string).strip("\n")  # noqa: E731
