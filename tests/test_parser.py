@@ -300,6 +300,11 @@ class ParserErrorTests(unittest.TestCase):
         with self.assertRaisesRegex(XCliError, "^expected subcommand$"):
             parser.parse([])
 
+    def test_unknown_subcommand(self):
+        parser = ArgumentParser([Subcommand("a"), Subcommand("b")])
+        with self.assertRaisesRegex(XCliError, "^unknown subcommand: c$"):
+            parser.parse(["c"])
+
 
 # Helper function to write multi-line strings more readably.
 s = lambda string: textwrap.dedent(string).strip("\n")  # noqa: E731

@@ -247,6 +247,9 @@ class ParserImpl:
     def _handle_subcommand(self):
         subcommand = self.args[self.index]
         spec = self.schema.subcommands.get(subcommand)
+        if not spec:
+            raise XCliError(f"unknown subcommand: {subcommand}")
+
         subresult = ParserImpl(spec.schema, self.args[self.index + 1 :]).parse()
         self.result.update(subresult)
         self.result.subcommand = subcommand
